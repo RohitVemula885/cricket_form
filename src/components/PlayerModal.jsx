@@ -103,7 +103,21 @@ export default function PlayerModal({
               <span className="text-xs font-medium text-slate-400 block mb-0.5">T-Shirt Size</span>
               <div className="flex items-center gap-1.5 text-sm font-bold text-slate-800">
                 <Shirt className="w-3.5 h-3.5 text-slate-400" />
-                <span>Size: {player.tshirtSize}</span>
+                <span>Size {player.tshirtSize || 'N/A'}</span>
+              </div>
+            </div>
+
+            <div>
+              <span className="text-xs font-medium text-slate-400 block mb-0.5">Name on T-Shirt</span>
+              <div className="text-sm font-bold text-teal-700 tracking-wide">
+                {player.tshirtName ? player.tshirtName.toUpperCase() : 'Not Specified'}
+              </div>
+            </div>
+
+            <div>
+              <span className="text-xs font-medium text-slate-400 block mb-0.5">Number on T-Shirt</span>
+              <div className="text-sm font-bold text-teal-700 font-mono">
+                {player.tshirtNumber ? `#${player.tshirtNumber}` : 'Not Specified'}
               </div>
             </div>
 

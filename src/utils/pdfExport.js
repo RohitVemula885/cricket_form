@@ -114,8 +114,6 @@ export function generateRegistrationsPDF(players = [], options = {}) {
       }
     }
 
-    const statusUpper = (player.paymentStatus || 'pending').toUpperCase();
-
     return [
       String(index + 1),
       player.id || `REG-${index + 1}`,
@@ -123,7 +121,8 @@ export function generateRegistrationsPDF(players = [], options = {}) {
       player.mobile || 'N/A',
       player.email || 'N/A',
       player.tshirtSize ? `Size ${player.tshirtSize}` : 'N/A',
-      statusUpper,
+      (player.tshirtName || '-').toUpperCase(),
+      player.tshirtNumber ? `#${player.tshirtNumber}` : '-',
       regDate,
     ];
   });
@@ -136,8 +135,9 @@ export function generateRegistrationsPDF(players = [], options = {}) {
       'Player Name',
       'Mobile Number',
       'Email Address',
-      'T-Shirt',
-      'Payment Status',
+      'Size',
+      'Jersey Name',
+      'Jersey #',
       'Registration Date & Time',
     ]],
     body: tableData,
@@ -163,29 +163,14 @@ export function generateRegistrationsPDF(players = [], options = {}) {
     },
     columnStyles: {
       0: { cellWidth: 10, halign: 'center' }, // #
-      1: { cellWidth: 28, fontStyle: 'bold' }, // Reg ID
-      2: { cellWidth: 42, fontStyle: 'bold' }, // Player Name
-      3: { cellWidth: 28 }, // Mobile
-      4: { cellWidth: 55 }, // Email
-      5: { cellWidth: 22, halign: 'center' }, // T-Shirt
-      6: { cellWidth: 34, halign: 'center', fontStyle: 'bold' }, // Payment Status
-      7: { cellWidth: 50 }, // Registration Date
-    },
-    didParseCell: function (data) {
-      // Highlight Payment Status cell with color badges
-      if (data.section === 'body' && data.column.index === 6) {
-        const val = String(data.cell.raw).toUpperCase();
-        if (val === 'VERIFIED') {
-          data.cell.styles.textColor = [22, 101, 52]; // Dark green
-          data.cell.styles.fillColor = [220, 252, 231]; // Soft green background
-        } else if (val === 'PENDING') {
-          data.cell.styles.textColor = [180, 83, 9]; // Dark amber
-          data.cell.styles.fillColor = [254, 243, 199]; // Soft amber background
-        } else if (val === 'REJECTED') {
-          data.cell.styles.textColor = [185, 28, 28]; // Dark red
-          data.cell.styles.fillColor = [254, 226, 226]; // Soft red background
-        }
-      }
+      1: { cellWidth: 26, fontStyle: 'bold' }, // Reg ID
+      2: { cellWidth: 38, fontStyle: 'bold' }, // Player Name
+      3: { cellWidth: 26 }, // Mobile
+      4: { cellWidth: 46 }, // Email
+      5: { cellWidth: 18, halign: 'center' }, // Size
+      6: { cellWidth: 32, fontStyle: 'bold', textColor: [15, 118, 110] }, // Jersey Name
+      7: { cellWidth: 18, halign: 'center', fontStyle: 'bold' }, // Jersey #
+      8: { cellWidth: 45 }, // Registration Date
     },
     didDrawPage: function (data) {
       // 4. FOOTER (Every Page)
@@ -220,12 +205,66 @@ export function generateRegistrationsPDF(players = [], options = {}) {
   const fileDate = now.toISOString().slice(0, 10);
   const fileName = `NextGen_Cricket_Registrations_${fileDate}.pdf`;
 
-  // Trigger download
-  doc.save(fileName);
+  // Robust Mobile & Desktop Download Engine
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+
+  // Device detection
+  const isIOS = typeof navigator !== 'undefined' && (
+    /iPad|iPhone|iPod/.test(navigator.userAgent || '') || 
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+  const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
+  const isMobile = isIOS || isAndroid;
+
+  try {
+    if (isIOS) {
+      // iOS Safari blocks anchor download attributes for blobs.
+      // Opening in a new tab allows iOS native PDF viewer to render it with the "Save to Files / Share" sheet!
+      const newWin = window.open(blobUrl, '_blank');
+      if (!newWin || newWin.closed || typeof newWin.closed === 'undefined') {
+        // Fallback if popup blocked
+        window.location.href = blobUrl;
+      }
+    } else {
+      // Android Chrome & Desktop: Standard anchor click
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (link.parentNode) {
+          document.body.removeChild(link);
+        }
+      }, 300);
+    }
+  } catch (err) {
+    console.warn('Direct download attempt encountered error, falling back to doc.save:', err);
+    try {
+      doc.save(fileName);
+    } catch (saveErr) {
+      console.error('jsPDF doc.save fallback failed:', saveErr);
+    }
+  }
+
+  // Delay revoking URL so mobile browsers have ample time to read the blob
+  setTimeout(() => {
+    try {
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      // ignore
+    }
+  }, 120000);
 
   return {
     success: true,
     fileName,
+    blobUrl,
+    blob,
+    isMobile,
     recordCount: totalPlayers,
   };
 }

@@ -40,7 +40,7 @@ export default function Header() {
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-medium hidden sm:block">
-                Player Registration &amp; Payment Portal
+                Player Registration
               </p>
             </div>
           </Link>

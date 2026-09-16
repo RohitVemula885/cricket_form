@@ -33,12 +33,26 @@ export default function PlayerTable({
     }
   };
 
-  const getTShirtBadge = (size) => {
+  const getTShirtBadge = (player) => {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
-        <Shirt className="w-3 h-3 text-slate-500" />
-        <span>{size || 'N/A'}</span>
-      </span>
+      <div className="flex flex-col gap-0.5">
+        <div className="flex items-center gap-1.5">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200">
+            <Shirt className="w-3 h-3 text-teal-600" />
+            <span>Size {player.tshirtSize || 'N/A'}</span>
+          </span>
+          {player.tshirtNumber && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono font-bold bg-teal-50 text-teal-700 border border-teal-200">
+              #{player.tshirtNumber}
+            </span>
+          )}
+        </div>
+        {player.tshirtName && (
+          <span className="text-[11px] font-bold text-slate-600 tracking-wider">
+            NAME: {player.tshirtName}
+          </span>
+        )}
+      </div>
     );
   };
 
@@ -107,19 +121,23 @@ export default function PlayerTable({
 
                   {/* T-Shirt */}
                   <td className="py-3.5 px-4">
-                    {getTShirtBadge(player.tshirtSize)}
+                    {getTShirtBadge(player)}
                   </td>
 
                   {/* Payment Proof Quick Link */}
                   <td className="py-3.5 px-4">
-                    <button
-                      type="button"
-                      onClick={() => onViewDetails(player)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:text-teal-800 hover:underline cursor-pointer"
-                    >
-                      <ImageIcon className="w-3.5 h-3.5" />
-                      <span>View</span>
-                    </button>
+                    {player.paymentScreenshot ? (
+                      <button
+                        type="button"
+                        onClick={() => onViewDetails(player)}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:text-teal-800 hover:underline cursor-pointer"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        <span>Proof</span>
+                      </button>
+                    ) : (
+                      <span className="text-xs text-slate-400 font-medium">N/A</span>
+                    )}
                   </td>
 
                   {/* Status */}
@@ -180,8 +198,16 @@ export default function PlayerTable({
                 <span className="text-slate-800 font-semibold">{player.mobile}</span>
               </div>
               <div>
-                <span className="text-slate-400 block font-medium">T-Shirt Size</span>
-                <span className="text-slate-800 font-semibold">{player.tshirtSize}</span>
+                <span className="text-slate-400 block font-medium">T-Shirt & Jersey</span>
+                <span className="text-slate-800 font-bold">
+                  Size {player.tshirtSize || '-'}
+                  {player.tshirtNumber ? ` • #${player.tshirtNumber}` : ''}
+                </span>
+                {player.tshirtName && (
+                  <span className="text-[11px] text-teal-700 font-semibold block uppercase">
+                    {player.tshirtName}
+                  </span>
+                )}
               </div>
               <div className="col-span-2 truncate">
                 <span className="text-slate-400 block font-medium">Email</span>
@@ -196,7 +222,7 @@ export default function PlayerTable({
                 className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 bg-teal-50 px-3 py-1.5 rounded-lg border border-teal-200"
               >
                 <Eye className="w-3.5 h-3.5" />
-                <span>View Details &amp; Payment</span>
+                <span>View Details</span>
               </button>
 
               <button

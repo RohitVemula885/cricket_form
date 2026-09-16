@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { User, Phone, Mail, Shirt, CheckCircle, Loader2, QrCode, Shield, Info, ArrowRight, RefreshCw, Trophy, Calendar, MapPin } from 'lucide-react';
+import { User, Phone, Mail, Shirt, Hash, CheckCircle, Loader2, Shield, ArrowRight, RefreshCw, Trophy, Calendar, MapPin } from 'lucide-react';
 import InputField from '../components/InputField.jsx';
-import FileUpload from '../components/FileUpload.jsx';
 import { addRegistration } from '../utils/storage.js';
 
 export default function Register() {
@@ -10,9 +9,8 @@ export default function Register() {
     mobile: '',
     email: '',
     tshirtSize: '',
-    paymentScreenshot: '',
-    fileName: '',
-    fileSize: '',
+    tshirtName: '',
+    tshirtNumber: '',
   });
 
   const [errors, setErrors] = useState({});
@@ -22,11 +20,17 @@ export default function Register() {
 
   const tshirtOptions = [
     { value: '', label: 'Select T-Shirt Size', disabled: true },
-    { value: 'S', label: 'S (Small - 36-38")' },
-    { value: 'M', label: 'M (Medium - 38-40")' },
-    { value: 'L', label: 'L (Large - 40-42")' },
-    { value: 'XL', label: 'XL (Extra Large - 42-44")' },
-    { value: 'XXL', label: 'XXL (Double Extra Large - 44-46")' },
+    { value: 'XXS', label: 'XXS (32)' },
+    { value: 'XS', label: 'XS (34)' },
+    { value: 'S', label: 'S (36)' },
+    { value: 'M', label: 'M (38)' },
+    { value: 'L', label: 'L (40)' },
+    { value: 'XL', label: 'XL (42)' },
+    { value: '2XL', label: '2XL (44)' },
+    { value: '3XL', label: '3XL (46)' },
+    { value: '4XL', label: '4XL (48)' },
+    { value: '5XL', label: '5XL (50)' },
+    { value: '6XL', label: '6XL (52)' },
   ];
 
   // Client-side validations
@@ -71,9 +75,24 @@ export default function Register() {
         }
         break;
 
-      case 'paymentScreenshot':
-        if (!value) {
-          error = 'Please upload your payment screenshot.';
+      case 'tshirtName':
+        if (!value || !value.trim()) {
+          error = 'Please enter the name to print on your T-shirt.';
+        } else if (value.trim().length > 12) {
+          error = 'Name on T-shirt cannot exceed 12 characters.';
+        }
+        break;
+
+      case 'tshirtNumber':
+        if (value === undefined || value === null || value.toString().trim() === '') {
+          error = 'Please enter your T-shirt jersey number.';
+        } else {
+          const cleanNum = value.toString().trim();
+          if (!/^\d+$/.test(cleanNum)) {
+            error = 'Jersey number must be digits only.';
+          } else if (cleanNum.length > 3) {
+            error = 'Jersey number cannot be more than 3 digits (max 999).';
+          }
         }
         break;
 
@@ -89,7 +108,8 @@ export default function Register() {
     newErrors.mobile = validateField('mobile', formData.mobile);
     newErrors.email = validateField('email', formData.email);
     newErrors.tshirtSize = validateField('tshirtSize', formData.tshirtSize);
-    newErrors.paymentScreenshot = validateField('paymentScreenshot', formData.paymentScreenshot);
+    newErrors.tshirtName = validateField('tshirtName', formData.tshirtName);
+    newErrors.tshirtNumber = validateField('tshirtNumber', formData.tshirtNumber);
 
     // Filter out empty errors
     const filteredErrors = Object.fromEntries(
@@ -103,10 +123,15 @@ export default function Register() {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     
-    // Auto-clean mobile input for ease of use
     let formattedValue = value;
     if (name === 'mobile') {
       formattedValue = value.replace(/\D/g, '').slice(0, 10);
+    } else if (name === 'tshirtNumber') {
+      // Enforce digits only and strictly max 3 digits
+      formattedValue = value.replace(/\D/g, '').slice(0, 3);
+    } else if (name === 'tshirtName') {
+      // Jersey name uppercase max 12 characters
+      formattedValue = value.slice(0, 12).toUpperCase();
     }
 
     setFormData((prev) => ({
@@ -124,31 +149,6 @@ export default function Register() {
     }
   };
 
-  const handleFileChange = ({ previewUrl, fileName, fileSize }) => {
-    setFormData((prev) => ({
-      ...prev,
-      paymentScreenshot: previewUrl,
-      fileName,
-      fileSize,
-    }));
-
-    if (errors.paymentScreenshot) {
-      setErrors((prev) => ({
-        ...prev,
-        paymentScreenshot: '',
-      }));
-    }
-  };
-
-  const handleFileClear = () => {
-    setFormData((prev) => ({
-      ...prev,
-      paymentScreenshot: '',
-      fileName: '',
-      fileSize: '',
-    }));
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -159,18 +159,14 @@ export default function Register() {
     setIsSubmitting(true);
 
     try {
-      /**
-       * Call storage utility.
-       * (In future with Supabase, addRegistration will call:
-       *  - supabase.storage for file upload
-       *  - supabase.from('registrations').insert(...) for record persistence)
-       */
       const newEntry = await addRegistration({
         fullName: formData.fullName,
         mobile: formData.mobile,
         email: formData.email,
         tshirtSize: formData.tshirtSize,
-        paymentScreenshot: formData.paymentScreenshot,
+        tshirtName: formData.tshirtName,
+        tshirtNumber: formData.tshirtNumber,
+        paymentScreenshot: '',
       });
 
       setSubmittedPlayer(newEntry);
@@ -190,9 +186,8 @@ export default function Register() {
       mobile: '',
       email: '',
       tshirtSize: '',
-      paymentScreenshot: '',
-      fileName: '',
-      fileSize: '',
+      tshirtName: '',
+      tshirtNumber: '',
     });
     setErrors({});
     setIsSuccess(false);
@@ -218,13 +213,8 @@ export default function Register() {
           </h2>
 
           <p className="mt-3 text-base text-slate-600 max-w-md mx-auto">
-            Your registration details and payment screenshot have been received.
+            Your registration and tournament jersey customization details have been confirmed.
           </p>
-
-          <div className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-            <Info className="w-3.5 h-3.5" />
-            <span>Your payment will be verified by the organizer.</span>
-          </div>
 
           {/* Submission Summary Ticket */}
           {submittedPlayer && (
@@ -241,16 +231,24 @@ export default function Register() {
                   <span className="text-slate-900 font-bold text-sm">{submittedPlayer.fullName}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block font-medium">T-Shirt Allocated</span>
+                  <span className="text-slate-400 block font-medium">T-Shirt Size</span>
                   <span className="text-slate-900 font-bold text-sm">Size {submittedPlayer.tshirtSize}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Name on T-Shirt</span>
+                  <span className="text-teal-700 font-bold text-sm tracking-wide">{submittedPlayer.tshirtName || '-'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Number on T-Shirt</span>
+                  <span className="text-teal-700 font-bold text-sm">#{submittedPlayer.tshirtNumber || '-'}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">Mobile Contact</span>
                   <span className="text-slate-800 font-medium">{submittedPlayer.mobile}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block font-medium">Status</span>
-                  <span className="text-amber-700 font-bold">Pending Verification</span>
+                  <span className="text-slate-400 block font-medium">Registration Status</span>
+                  <span className="text-emerald-700 font-bold">Confirmed</span>
                 </div>
               </div>
             </div>
@@ -278,9 +276,10 @@ export default function Register() {
               <div className="space-y-2">
                 <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-500/20 text-teal-200 border border-teal-400/30">
                   <Trophy className="w-3.5 h-3.5" />
+                  <span>Official Registration 2026</span>
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                  GRAND TOURNAMENT 2026
+                  GRAND CRICKET TOURNAMENT 2026
                 </h1>
                 <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-teal-100/90 font-medium pt-1">
                   <span className="flex items-center gap-1.5">
@@ -294,11 +293,11 @@ export default function Register() {
                 </div>
               </div>
 
-              {/* Match Fee & Payment Box */}
-              <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 sm:min-w-[220px]">
-                <span className="text-xs text-teal-200 font-medium block">Registration Fee</span>
-                <div className="text-2xl font-extrabold text-white mt-0.5">₹600 <span className="text-xs font-normal text-teal-200">/ player</span></div>
-                <div className="text-xs text-teal-100/80 mt-1 font-mono">UPI: <span className="font-semibold text-white">spavan9874-3@oksbi</span></div>
+              {/* Tournament Match Card */}
+              <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 sm:min-w-[200px]">
+                <span className="text-xs text-teal-200 font-medium block">Match Roster</span>
+                <div className="text-xl font-extrabold text-white mt-0.5">Player Entry</div>
+                <div className="text-xs text-teal-100/80 mt-1">Official Jersey Included</div>
               </div>
             </div>
           </div>
@@ -307,10 +306,10 @@ export default function Register() {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 sm:p-8 lg:p-10">
             <div className="border-b border-slate-100 pb-5 mb-6 sm:mb-8">
               <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-                Register for the Match
+                Player Registration
               </h2>
               <p className="mt-1 text-sm text-slate-500 font-medium">
-                Fill in your details and submit your payment proof to confirm your registration.
+                Enter your player details and personalize your official tournament T-Shirt.
               </p>
             </div>
 
@@ -327,7 +326,7 @@ export default function Register() {
                 error={errors.fullName}
                 required
                 icon={User}
-                helperText="Minimum 2 characters"
+                helperText="Player's official tournament name"
                 disabled={isSubmitting}
               />
 
@@ -345,7 +344,7 @@ export default function Register() {
                   error={errors.mobile}
                   required
                   icon={Phone}
-                  helperText="10-digit Indian mobile"
+                  helperText="10-digit Indian mobile number"
                   maxLength={10}
                   disabled={isSubmitting}
                 />
@@ -362,50 +361,75 @@ export default function Register() {
                   error={errors.email}
                   required
                   icon={Mail}
+                  helperText="For match schedule & updates"
                   disabled={isSubmitting}
                 />
               </div>
 
-              {/* Field 4: T-Shirt Size */}
-              <InputField
-                id="tshirtSize"
-                name="tshirtSize"
-                type="select"
-                label="T-Shirt Size"
-                value={formData.tshirtSize}
-                onChange={handleInputChange}
-                error={errors.tshirtSize}
-                required
-                options={tshirtOptions}
-                icon={Shirt}
-                helperText="Official match jersey size"
-                disabled={isSubmitting}
-              />
+              {/* T-Shirt Customization Section */}
+              <div className="pt-3 border-t border-slate-100">
+                <div className="mb-4">
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Shirt className="w-4 h-4 text-teal-600" />
+                    <span>Tournament T-Shirt Customization</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Choose your jersey size, name printing, and jersey number (up to 3 digits).
+                  </p>
+                </div>
 
-              {/* Payment Proof Instructions */}
-              <div className="bg-teal-50/70 border border-teal-200/80 rounded-xl p-4 flex items-start gap-3 text-xs text-slate-700">
-                <Info className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold text-teal-900 block">Payment Instructions:</span>
-                  <span>
-                    Pay <strong className="font-semibold text-slate-900">₹600</strong> using Google Pay, PhonePe, Paytm, or UPI to <strong className="font-semibold text-slate-900">spavan9874-3@oksbi</strong>. Take a clear screenshot displaying the UPI Reference / UTR Number and upload below.
-                  </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6">
+                  {/* Field 4: T-Shirt Size */}
+                  <InputField
+                    id="tshirtSize"
+                    name="tshirtSize"
+                    type="select"
+                    label="T-Shirt Size"
+                    value={formData.tshirtSize}
+                    onChange={handleInputChange}
+                    error={errors.tshirtSize}
+                    required
+                    options={tshirtOptions}
+                    icon={Shirt}
+                    helperText="Official match jersey fit"
+                    disabled={isSubmitting}
+                  />
+
+                  {/* Field 5: Name on T-Shirt */}
+                  <InputField
+                    id="tshirtName"
+                    name="tshirtName"
+                    label="Name on T-Shirt"
+                    placeholder="e.g. ROHIT"
+                    value={formData.tshirtName}
+                    onChange={handleInputChange}
+                    error={errors.tshirtName}
+                    required
+                    icon={User}
+                    helperText="Back of jersey (Max 12 chars)"
+                    maxLength={12}
+                    disabled={isSubmitting}
+                  />
+
+                  {/* Field 6: Number on T-Shirt */}
+                  <InputField
+                    id="tshirtNumber"
+                    name="tshirtNumber"
+                    type="text"
+                    inputMode="numeric"
+                    label="Number on T-Shirt"
+                    placeholder="e.g. 7 or 18"
+                    value={formData.tshirtNumber}
+                    onChange={handleInputChange}
+                    error={errors.tshirtNumber}
+                    required
+                    icon={Hash}
+                    helperText="Max 3 digits (0 - 999)"
+                    maxLength={3}
+                    disabled={isSubmitting}
+                  />
                 </div>
               </div>
-
-              {/* Field 5: Payment Screenshot */}
-              <FileUpload
-                id="paymentScreenshot"
-                label="Payment Screenshot"
-                required
-                value={formData.paymentScreenshot}
-                fileName={formData.fileName}
-                fileSize={formData.fileSize}
-                onChange={handleFileChange}
-                onClear={handleFileClear}
-                error={errors.paymentScreenshot}
-                disabled={isSubmitting}
-              />
 
               {errors.form && (
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs font-semibold text-rose-700">
@@ -413,7 +437,7 @@ export default function Register() {
                 </div>
               )}
 
-              {/* Field 6: Submit Button */}
+              {/* Submit Button */}
               <div className="pt-2">
                 <button
                   type="submit"
@@ -437,7 +461,7 @@ export default function Register() {
 
               <div className="flex items-center gap-2 text-xs text-slate-400 font-medium pt-2">
                 <Shield className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                <span>Your information is encrypted and securely sent directly to match organizers.</span>
+                <span>Your information is securely saved directly to the tournament roster.</span>
               </div>
             </form>
           </div>

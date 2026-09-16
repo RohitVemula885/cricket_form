@@ -4,7 +4,7 @@ import {
   Users, CheckCircle2, Clock, XCircle, Search, Filter, 
   RotateCcw, ShieldCheck, LogOut, AlertTriangle, 
   Shirt, Phone, Mail, ExternalLink, Calendar, KeyRound, Lock, Check, Eye, EyeOff, X,
-  FileText, Loader2
+  FileText, Loader2, Database, Copy, RefreshCw, Globe, Server, Download
 } from 'lucide-react';
 
 import StatCard from '../components/StatCard.jsx';
@@ -18,6 +18,13 @@ import {
 } from '../utils/storage.js';
 import { getAdminUser, logout, getAdminCredentials, updateAdminCredentials, resetAdminCredentials } from '../utils/auth.js';
 import { generateRegistrationsPDF } from '../utils/pdfExport.js';
+import { 
+  getSupabaseConfig, 
+  saveSupabaseConfig, 
+  clearSupabaseConfig, 
+  testSupabaseConnection, 
+  getSupabaseClient 
+} from '../utils/supabaseClient.js';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -27,6 +34,7 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [tshirtFilter, setTshirtFilter] = useState('All');
+  const [isLoadingData, setIsLoadingData] = useState(false);
 
   // Modal states
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -41,15 +49,186 @@ export default function AdminDashboard() {
   const [credsError, setCredsError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Load player list from storage
-  const loadData = () => {
-    const data = getRegistrations();
-    setPlayers(data);
+  // Supabase Database Connection Modal states
+  const [isDbModalOpen, setIsDbModalOpen] = useState(false);
+  const [dbConfig, setDbConfig] = useState(getSupabaseConfig());
+  const [dbInputUrl, setDbInputUrl] = useState('');
+  const [dbInputKey, setDbInputKey] = useState('');
+  const [isTestingDb, setIsTestingDb] = useState(false);
+  const [dbTestResult, setDbTestResult] = useState(null);
+  const [sqlCopied, setSqlCopied] = useState(false);
+  const [pdfDownloadNotice, setPdfDownloadNotice] = useState(null);
+
+  // Load player list from storage / Supabase
+  const loadData = async () => {
+    setIsLoadingData(true);
+    try {
+      const data = await getRegistrations();
+      setPlayers(data);
+    } catch (err) {
+      console.error('Failed to load registrations:', err);
+    } finally {
+      setIsLoadingData(false);
+    }
   };
 
   useEffect(() => {
     loadData();
+
+    // Check Supabase config on mount
+    const currentConfig = getSupabaseConfig();
+    setDbConfig(currentConfig);
+    if (currentConfig.url && currentConfig.anonKey) {
+      setDbInputUrl(currentConfig.url);
+      setDbInputKey(currentConfig.anonKey);
+    }
+
+    // Set up Realtime listener if Supabase client is active
+    const supabase = getSupabaseClient();
+    let channel = null;
+    if (supabase) {
+      try {
+        channel = supabase
+          .channel('realtime_admin_registrations')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'registrations' },
+            () => {
+              loadData();
+            }
+          )
+          .subscribe();
+      } catch (err) {
+        console.warn('Supabase realtime error:', err);
+      }
+    }
+
+    return () => {
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, []);
+
+  const handleOpenDbModal = () => {
+    const current = getSupabaseConfig();
+    setDbConfig(current);
+    setDbInputUrl(current.url || '');
+    setDbInputKey(current.anonKey || '');
+    setDbTestResult(null);
+    setIsDbModalOpen(true);
+  };
+
+  const handleTestAndSaveDb = async (e) => {
+    e.preventDefault();
+    setDbTestResult(null);
+
+    if (!dbInputUrl.trim() || !dbInputKey.trim()) {
+      setDbTestResult({
+        success: false,
+        message: 'Please provide both your Supabase Project URL and Public Anon Key.',
+      });
+      return;
+    }
+
+    setIsTestingDb(true);
+    try {
+      const testRes = await testSupabaseConnection(dbInputUrl.trim(), dbInputKey.trim());
+      if (testRes.success) {
+        if (testRes.normalizedUrl) {
+          setDbInputUrl(testRes.normalizedUrl);
+        }
+        saveSupabaseConfig(testRes.normalizedUrl || dbInputUrl.trim(), dbInputKey.trim());
+        const updatedConfig = getSupabaseConfig();
+        setDbConfig(updatedConfig);
+        setDbTestResult({
+          success: true,
+          message: 'Connected successfully! Live registrations sync across all mobile phones is active.',
+        });
+        // Reload registrations from the connected database
+        await loadData();
+      } else {
+        let msg = testRes.error || 'Failed to connect. Check your URL and Key.';
+        if (msg.includes('Invalid path')) {
+          msg = 'Invalid Project URL. Make sure it looks like https://your-project-id.supabase.co (do not include /rest/v1 or dashboard paths).';
+        }
+        setDbTestResult({
+          success: false,
+          tableMissing: testRes.tableMissing,
+          message: msg,
+        });
+      }
+    } catch (err) {
+      setDbTestResult({
+        success: false,
+        message: err.message || 'Error testing Supabase connection.',
+      });
+    } finally {
+      setIsTestingDb(false);
+    }
+  };
+
+  const handleClearDbConfig = async () => {
+    if (window.confirm('Disconnect cloud database and revert to local storage?')) {
+      clearSupabaseConfig();
+      const updatedConfig = getSupabaseConfig();
+      setDbConfig(updatedConfig);
+      setDbInputUrl('');
+      setDbInputKey('');
+      setDbTestResult({
+        success: true,
+        message: 'Disconnected. Using local browser storage.',
+      });
+      await loadData();
+    }
+  };
+
+  const sqlSetupScript = `-- 1. Create registrations table
+create table if not exists public.registrations (
+  id text primary key,
+  full_name text not null,
+  mobile text not null,
+  email text not null,
+  tshirt_size text,
+  tshirt_name text,
+  tshirt_number text,
+  payment_screenshot text,
+  payment_status text default 'pending',
+  notes text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 2. Add jersey customization columns if table was created previously
+alter table public.registrations add column if not exists tshirt_name text;
+alter table public.registrations add column if not exists tshirt_number text;
+
+-- 3. Enable Row Level Security (RLS)
+alter table public.registrations enable row level security;
+
+-- 4. Drop existing policies if they already exist (safe to re-run anytime)
+drop policy if exists "Allow public insert" on public.registrations;
+drop policy if exists "Allow public select" on public.registrations;
+drop policy if exists "Allow public update" on public.registrations;
+drop policy if exists "Allow public delete" on public.registrations;
+
+-- 5. Re-create policies for mobile submissions & admin management
+create policy "Allow public insert" on public.registrations
+  for insert to anon with check (true);
+
+create policy "Allow public select" on public.registrations
+  for select to anon using (true);
+
+create policy "Allow public update" on public.registrations
+  for update to anon using (true) with check (true);
+
+create policy "Allow public delete" on public.registrations
+  for delete to anon using (true);`;
+
+  const handleCopySql = () => {
+    navigator.clipboard.writeText(sqlSetupScript);
+    setSqlCopied(true);
+    setTimeout(() => setSqlCopied(false), 2500);
+  };
 
   const handleOpenCredsModal = () => {
     const current = getAdminCredentials();
@@ -213,9 +392,18 @@ export default function AdminDashboard() {
       // Small tick so UI shows loading feedback
       await new Promise((resolve) => setTimeout(resolve, 80));
 
-      generateRegistrationsPDF(listToExport, {
+      const result = generateRegistrationsPDF(listToExport, {
         adminName: adminUser?.name || 'Tournament Director',
       });
+
+      if (result && result.blobUrl) {
+        setPdfDownloadNotice({
+          fileName: result.fileName,
+          blobUrl: result.blobUrl,
+          isMobile: result.isMobile,
+          recordCount: result.recordCount,
+        });
+      }
     } catch (err) {
       console.error('Failed to generate PDF report:', err);
       alert('Could not generate PDF roster. Please try again.');
@@ -244,7 +432,37 @@ export default function AdminDashboard() {
         </div>
 
         {/* Admin profile/login information & actions */}
-        <div className="flex flex-wrap items-center gap-3 self-start md:self-center">
+        <div className="flex flex-wrap items-center gap-2.5 self-start md:self-center">
+          
+          {/* Cloud Database Connection Status Button */}
+          <button
+            type="button"
+            onClick={handleOpenDbModal}
+            id="btn-cloud-db-status"
+            title="Configure Supabase Cloud Database for cross-device registrations sync"
+            className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+              dbConfig.url
+                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200 shadow-2xs'
+                : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300 animate-pulse'
+            }`}
+          >
+            <Database className={`w-3.5 h-3.5 ${dbConfig.url ? 'text-emerald-600' : 'text-amber-600'}`} />
+            <span>{dbConfig.url ? 'Cloud Sync Active' : 'Connect Cloud DB'}</span>
+          </button>
+
+          {/* Quick Refresh Button */}
+          <button
+            type="button"
+            onClick={loadData}
+            disabled={isLoadingData}
+            id="btn-refresh-data"
+            title="Refresh registrations from database"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-teal-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isLoadingData ? 'animate-spin text-teal-600' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+
           <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200">
             <div className="w-7 h-7 rounded-full bg-slate-900 text-teal-400 flex items-center justify-center font-bold text-xs">
               AD
@@ -302,6 +520,85 @@ export default function AdminDashboard() {
           </button>
         </div>
       </div>
+
+      {/* Cross-Device Cloud Sync Notice Banner (shown when cloud database is not connected) */}
+      {!dbConfig.url && (
+        <div className="bg-amber-50 border border-amber-300/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-100 text-amber-900 shrink-0 mt-0.5 sm:mt-0">
+              <Database className="w-5 h-5 text-amber-700" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-amber-950 flex items-center gap-2">
+                <span>Action Needed: Connect Cloud Database for Mobile Registrations</span>
+                <span className="text-2xs uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-200/70 font-black text-amber-900">
+                  Important
+                </span>
+              </h3>
+              <p className="text-xs text-amber-800 mt-1 leading-relaxed max-w-3xl">
+                Currently running on <strong>Local Browser Storage</strong>. When players submit the registration form from their own mobile phones or via Vercel, their submissions will <strong>not</strong> reach your admin screen until you connect your free Supabase database.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenDbModal}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 rounded-xl shadow-xs transition-colors shrink-0 cursor-pointer"
+          >
+            <Database className="w-4 h-4" />
+            <span>Connect Supabase (1-Min Setup)</span>
+          </button>
+        </div>
+      )}
+
+      {/* PDF Download Ready Banner (Crucial for mobile devices if auto-download was suppressed) */}
+      {pdfDownloadNotice && (
+        <div className="bg-teal-50 border border-teal-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 rounded-xl bg-teal-100 text-teal-800 shrink-0">
+              <FileText className="w-5 h-5 text-teal-700" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-teal-950">
+                  PDF Roster Generated ({pdfDownloadNotice.recordCount} Players)
+                </h3>
+                <span className="text-2xs uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-200/70 font-black text-teal-900">
+                  Ready
+                </span>
+              </div>
+              <p className="text-xs text-teal-800 mt-0.5 font-mono">
+                {pdfDownloadNotice.fileName}
+              </p>
+              <p className="text-xs text-teal-700 mt-1">
+                If the download didn&apos;t save automatically on your phone or mobile browser, tap the button below to view or save it.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full sm:w-auto shrink-0 justify-end">
+            <a
+              href={pdfDownloadNotice.blobUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              download={pdfDownloadNotice.fileName}
+              id="btn-open-save-mobile-pdf"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              <span>Open / Save PDF</span>
+            </a>
+            <button
+              type="button"
+              onClick={() => setPdfDownloadNotice(null)}
+              className="p-2 text-teal-700 hover:text-teal-900 hover:bg-teal-100 rounded-xl transition-colors cursor-pointer"
+              title="Dismiss notification"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 5. STATISTICS CARDS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5">
@@ -638,6 +935,227 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 11. SUPABASE CLOUD DATABASE & VERCEL SYNC MODAL */}
+      {isDbModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 my-8">
+            <div className="flex items-start justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-extrabold text-slate-900">
+                    Cloud Database &amp; Vercel Mobile Sync
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    Connect free Supabase to receive all player registrations from any mobile phone
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDbModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Current Connection Status Badge */}
+            <div className="mt-4 p-3.5 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50 border-slate-200">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-3 h-3 rounded-full ${dbConfig.url ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                <span className="text-xs font-bold text-slate-800">
+                  Status: {dbConfig.url ? 'Connected to Cloud Database' : 'Using Local Storage Only'}
+                </span>
+                {dbConfig.source && (
+                  <span className="text-2xs font-semibold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                    via {dbConfig.source}
+                  </span>
+                )}
+              </div>
+
+              {dbConfig.url && (
+                <button
+                  type="button"
+                  onClick={handleClearDbConfig}
+                  className="text-xs text-rose-600 hover:text-rose-700 font-semibold underline cursor-pointer"
+                >
+                  Disconnect Database
+                </button>
+              )}
+            </div>
+
+            {/* Step-by-Step Guide */}
+            <div className="mt-5 space-y-4">
+              
+              {/* Step 1 */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-teal-700">
+                    Step 1: Get Free Supabase Project
+                  </span>
+                  <a
+                    href="https://supabase.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-teal-700 hover:text-teal-800 underline"
+                  >
+                    <span>Open supabase.com</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+                <p className="text-xs text-slate-600">
+                  Create a new project at <strong>supabase.com</strong> (100% free, takes 1 minute).
+                </p>
+              </div>
+
+              {/* Step 2: SQL Script */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-teal-700">
+                    Step 2: Run SQL in Supabase SQL Editor
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopySql}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg border border-teal-200 transition-colors cursor-pointer"
+                  >
+                    {sqlCopied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-emerald-700">SQL Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy SQL Script</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-slate-600">
+                  In your Supabase project dashboard, click <strong>SQL Editor</strong> on the left, click <strong>New Query</strong>, paste the script and click <strong>Run</strong>:
+                </p>
+                <div className="bg-slate-900 rounded-xl p-3 text-slate-200 text-xs font-mono overflow-x-auto max-h-36">
+                  <pre>{sqlSetupScript}</pre>
+                </div>
+              </div>
+
+              {/* Step 3: Enter credentials */}
+              <form onSubmit={handleTestAndSaveDb} className="p-4 rounded-xl border border-teal-200 bg-teal-50/40 space-y-3">
+                <span className="text-xs font-extrabold uppercase tracking-wider text-teal-800">
+                  Step 3: Enter Supabase Credentials
+                </span>
+
+                {dbTestResult && (
+                  <div
+                    className={`p-3 rounded-xl text-xs font-medium border flex items-start gap-2 ${
+                      dbTestResult.success
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                        : 'bg-rose-50 text-rose-800 border-rose-300'
+                    }`}
+                  >
+                    {dbTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <p className="font-bold">{dbTestResult.message}</p>
+                      {dbTestResult.tableMissing && (
+                        <p className="mt-1 text-rose-700">
+                          Please copy and run the SQL query from Step 2 above to create the table.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Supabase Project URL
+                  </label>
+                  <input
+                    type="url"
+                    value={dbInputUrl}
+                    onChange={(e) => setDbInputUrl(e.target.value)}
+                    placeholder="https://xxxxxxxxxxxxxxxx.supabase.co"
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-teal-600 outline-hidden transition-colors"
+                  />
+                  <p className="text-2xs text-slate-500 mt-1">Found in Project Settings &gt; API &gt; Project URL</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Project Anon Public API Key
+                  </label>
+                  <input
+                    type="text"
+                    value={dbInputKey}
+                    onChange={(e) => setDbInputKey(e.target.value)}
+                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-teal-600 outline-hidden transition-colors"
+                  />
+                  <p className="text-2xs text-slate-500 mt-1">Found in Project Settings &gt; API &gt; Project API keys (anon / public)</p>
+                </div>
+
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-xs text-slate-500">
+                    Saves for this browser immediately.
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isTestingDb}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-50 rounded-xl shadow-2xs transition-colors cursor-pointer"
+                  >
+                    {isTestingDb ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Verifying Connection...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Database className="w-4 h-4" />
+                        <span>Test &amp; Connect Cloud DB</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+
+              {/* Vercel Environment Variables Note */}
+              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700 space-y-1">
+                <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-teal-600" />
+                  <span>Deploying to Vercel? Add Environment Variables</span>
+                </div>
+                <p className="text-slate-600 leading-relaxed">
+                  In your Vercel Dashboard project, go to <strong>Settings &gt; Environment Variables</strong> and add:
+                </p>
+                <div className="bg-white border border-slate-200 rounded-lg p-2 font-mono text-2xs space-y-1">
+                  <div><strong>VITE_SUPABASE_URL</strong> = <em>your project URL</em></div>
+                  <div><strong>VITE_SUPABASE_ANON_KEY</strong> = <em>your anon public key</em></div>
+                </div>
+                <p className="text-2xs text-slate-500">Then redeploy on Vercel so all players accessing via your domain connect to the same database!</p>
+              </div>
+
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsDbModalOpen(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}
