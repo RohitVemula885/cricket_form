@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, CheckCircle2, XCircle, Clock, Calendar, Mail, Phone, Shirt, ExternalLink, ZoomIn, ShieldCheck } from 'lucide-react';
+import { formatTshirtSizeWithNumber } from '../utils/tshirtConfig';
 
 export default function PlayerModal({
   player,
@@ -103,7 +104,7 @@ export default function PlayerModal({
               <span className="text-xs font-medium text-slate-400 block mb-0.5">T-Shirt Size</span>
               <div className="flex items-center gap-1.5 text-sm font-bold text-slate-800">
                 <Shirt className="w-3.5 h-3.5 text-slate-400" />
-                <span>Size {player.tshirtSize || 'N/A'}</span>
+                <span>{formatTshirtSizeWithNumber(player.tshirtSize)}</span>
               </div>
             </div>
 

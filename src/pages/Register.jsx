@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Phone, Mail, Shirt, Hash, CheckCircle, Loader2, Shield, ArrowRight, RefreshCw, Trophy, Calendar, MapPin } from 'lucide-react';
 import InputField from '../components/InputField.jsx';
 import { addRegistration } from '../utils/storage.js';
+import { TSHIRT_OPTIONS, formatTshirtSizeWithNumber } from '../utils/tshirtConfig.js';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -18,20 +19,7 @@ export default function Register() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [submittedPlayer, setSubmittedPlayer] = useState(null);
 
-  const tshirtOptions = [
-    { value: '', label: 'Select T-Shirt Size', disabled: true },
-    { value: 'XXS', label: 'XXS (32)' },
-    { value: 'XS', label: 'XS (34)' },
-    { value: 'S', label: 'S (36)' },
-    { value: 'M', label: 'M (38)' },
-    { value: 'L', label: 'L (40)' },
-    { value: 'XL', label: 'XL (42)' },
-    { value: '2XL', label: '2XL (44)' },
-    { value: '3XL', label: '3XL (46)' },
-    { value: '4XL', label: '4XL (48)' },
-    { value: '5XL', label: '5XL (50)' },
-    { value: '6XL', label: '6XL (52)' },
-  ];
+  const tshirtOptions = TSHIRT_OPTIONS;
 
   // Client-side validations
   const validateField = (name, value) => {
@@ -232,7 +220,9 @@ export default function Register() {
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">T-Shirt Size</span>
-                  <span className="text-slate-900 font-bold text-sm">Size {submittedPlayer.tshirtSize}</span>
+                  <span className="text-slate-900 font-bold text-sm">
+                    {formatTshirtSizeWithNumber(submittedPlayer.tshirtSize)}
+                  </span>
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">Name on T-Shirt</span>

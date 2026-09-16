@@ -1,5 +1,6 @@
 import React from 'react';
 import { Eye, Trash2, Clock, CheckCircle2, XCircle, Shirt, Phone, Mail, Image as ImageIcon } from 'lucide-react';
+import { formatTshirtSizeWithNumber } from '../utils/tshirtConfig';
 
 export default function PlayerTable({
   players = [],
@@ -39,7 +40,7 @@ export default function PlayerTable({
         <div className="flex items-center gap-1.5">
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200">
             <Shirt className="w-3 h-3 text-teal-600" />
-            <span>Size {player.tshirtSize || 'N/A'}</span>
+            <span>{formatTshirtSizeWithNumber(player.tshirtSize)}</span>
           </span>
           {player.tshirtNumber && (
             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono font-bold bg-teal-50 text-teal-700 border border-teal-200">
@@ -198,9 +199,9 @@ export default function PlayerTable({
                 <span className="text-slate-800 font-semibold">{player.mobile}</span>
               </div>
               <div>
-                <span className="text-slate-400 block font-medium">T-Shirt & Jersey</span>
+                <span className="text-slate-400 block font-medium">T-Shirt &amp; Jersey</span>
                 <span className="text-slate-800 font-bold">
-                  Size {player.tshirtSize || '-'}
+                  {formatTshirtSizeWithNumber(player.tshirtSize)}
                   {player.tshirtNumber ? ` • #${player.tshirtNumber}` : ''}
                 </span>
                 {player.tshirtName && (

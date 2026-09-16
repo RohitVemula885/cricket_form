@@ -4,7 +4,7 @@ import {
   Users, CheckCircle2, Clock, XCircle, Search, Filter, 
   RotateCcw, ShieldCheck, LogOut, AlertTriangle, 
   Shirt, Phone, Mail, ExternalLink, Calendar, KeyRound, Lock, Check, Eye, EyeOff, X,
-  FileText, Loader2, Database, Copy, RefreshCw, Globe, Server, Download
+  FileText, Loader2, Database, Copy, RefreshCw, Globe, Server, Download, Share2
 } from 'lucide-react';
 
 import StatCard from '../components/StatCard.jsx';
@@ -18,6 +18,7 @@ import {
 } from '../utils/storage.js';
 import { getAdminUser, logout, getAdminCredentials, updateAdminCredentials, resetAdminCredentials } from '../utils/auth.js';
 import { generateRegistrationsPDF } from '../utils/pdfExport.js';
+import { triggerDirectDownload } from '../utils/mobilePdfDownloader.js';
 import { 
   getSupabaseConfig, 
   saveSupabaseConfig, 
@@ -377,6 +378,44 @@ create policy "Allow public delete" on public.registrations
 
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
+  // Fallback direct mobile sharing/saving handler
+  const handleShareOrSaveMobilePdf = async () => {
+    if (!pdfDownloadNotice) return;
+    try {
+      if (pdfDownloadNotice.blobUrl && navigator.share) {
+        // Fetch blob and trigger native Web Share
+        const res = await fetch(pdfDownloadNotice.blobUrl);
+        const blob = await res.blob();
+        const file = new File([blob], pdfDownloadNotice.fileName, { type: 'application/pdf' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: 'NextGen Cricket 2026 Roster',
+            files: [file],
+          });
+          return;
+        }
+      }
+    } catch {
+      // ignore user cancel
+    }
+
+    // Direct fallback: navigate or open new window
+    if (pdfDownloadNotice.blobUrl) {
+      window.open(pdfDownloadNotice.blobUrl, '_blank') || (window.location.href = pdfDownloadNotice.blobUrl);
+    }
+  };
+
+  // Direct manual trigger for the Download File button
+  const handleDirectDownloadFileClick = (e) => {
+    e.preventDefault();
+    if (!pdfDownloadNotice) return;
+    if (pdfDownloadNotice.blobUrl) {
+      triggerDirectDownload(pdfDownloadNotice.blobUrl, pdfDownloadNotice.fileName);
+    } else if (pdfDownloadNotice.dataUriString) {
+      triggerDirectDownload(pdfDownloadNotice.dataUriString, pdfDownloadNotice.fileName);
+    }
+  };
+
   // Download Comprehensive Player Roster as PDF
   const handleDownloadPDF = async () => {
     // If filter/search is active, export the filtered view, otherwise all players
@@ -392,14 +431,15 @@ create policy "Allow public delete" on public.registrations
       // Small tick so UI shows loading feedback
       await new Promise((resolve) => setTimeout(resolve, 80));
 
-      const result = generateRegistrationsPDF(listToExport, {
+      const result = await generateRegistrationsPDF(listToExport, {
         adminName: adminUser?.name || 'Tournament Director',
       });
 
-      if (result && result.blobUrl) {
+      if (result && (result.blobUrl || result.dataUriString)) {
         setPdfDownloadNotice({
           fileName: result.fileName,
           blobUrl: result.blobUrl,
+          dataUriString: result.dataUriString,
           isMobile: result.isMobile,
           recordCount: result.recordCount,
         });
@@ -551,6 +591,36 @@ create policy "Allow public delete" on public.registrations
         </div>
       )}
 
+      {/* Notice when connected via Local Browser Settings instead of Vercel Environment Variables */}
+      {dbConfig.url && dbConfig.source === 'dashboard' && (
+        <div className="bg-sky-50 border border-sky-300/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 rounded-xl bg-sky-100 text-sky-900 shrink-0 mt-0.5 sm:mt-0">
+              <Globe className="w-5 h-5 text-sky-700" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-sky-950 flex items-center gap-2">
+                <span>Connected on this Device. Next step: Add to Vercel for other Mobile Users</span>
+                <span className="text-2xs uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-200 font-bold text-sky-900">
+                  Vercel Setup
+                </span>
+              </h3>
+              <p className="text-xs text-sky-800 mt-1 leading-relaxed max-w-3xl">
+                Your database is active on this browser! Because other mobile phones don&apos;t share this browser&apos;s memory, add <strong>VITE_SUPABASE_URL</strong> and <strong>VITE_SUPABASE_ANON_KEY</strong> to your Vercel Project Settings and click <strong>Redeploy</strong> so every phone submits directly to your database.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenDbModal}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold text-sky-900 bg-sky-200/80 hover:bg-sky-200 rounded-xl transition-colors shrink-0 cursor-pointer"
+          >
+            <Server className="w-4 h-4" />
+            <span>View Vercel Keys</span>
+          </button>
+        </div>
+      )}
+
       {/* PDF Download Ready Banner (Crucial for mobile devices if auto-download was suppressed) */}
       {pdfDownloadNotice && (
         <div className="bg-teal-50 border border-teal-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs animate-in fade-in">
@@ -576,22 +646,41 @@ create policy "Allow public delete" on public.registrations
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 w-full sm:w-auto shrink-0 justify-end">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
+            {typeof navigator !== 'undefined' && navigator.share && (
+              <button
+                type="button"
+                onClick={handleShareOrSaveMobilePdf}
+                id="btn-share-mobile-pdf"
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-teal-900 bg-teal-200/90 hover:bg-teal-300 border border-teal-300 rounded-xl transition-colors cursor-pointer text-center"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Share / Save</span>
+              </button>
+            )}
             <a
               href={pdfDownloadNotice.blobUrl}
               target="_blank"
               rel="noopener noreferrer"
-              download={pdfDownloadNotice.fileName}
-              id="btn-open-save-mobile-pdf"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+              id="btn-open-mobile-pdf-view"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-teal-800 bg-teal-100 hover:bg-teal-200 border border-teal-300/80 rounded-xl transition-colors cursor-pointer text-center"
             >
-              <Download className="w-4 h-4" />
-              <span>Open / Save PDF</span>
+              <FileText className="w-3.5 h-3.5" />
+              <span>View in Browser</span>
             </a>
             <button
               type="button"
+              onClick={handleDirectDownloadFileClick}
+              id="btn-open-save-mobile-pdf"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl shadow-xs transition-colors cursor-pointer text-center"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download PDF File</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setPdfDownloadNotice(null)}
-              className="p-2 text-teal-700 hover:text-teal-900 hover:bg-teal-100 rounded-xl transition-colors cursor-pointer"
+              className="hidden sm:inline-flex p-2 text-teal-700 hover:text-teal-900 hover:bg-teal-100 rounded-xl transition-colors cursor-pointer"
               title="Dismiss notification"
             >
               <X className="w-4 h-4" />
