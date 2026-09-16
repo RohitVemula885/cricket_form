@@ -1,0 +1,6 @@
+{
+  "name": "Player Registration & Payment Submission System",
+  "description": "A modern cricket and sports player registration and payment proof submission portal with public registration and private admin dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
