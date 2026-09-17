@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Phone, Mail, Shirt, Hash, CheckCircle, Loader2, Shield, ArrowRight, RefreshCw, Trophy, Calendar, MapPin } from 'lucide-react';
+import { User, Phone, Mail, Shirt, Hash, CheckCircle, Loader2, Shield, ArrowRight, RefreshCw, Trophy, Calendar, MapPin, UserPlus, Check } from 'lucide-react';
 import InputField from '../components/InputField.jsx';
 import { addRegistration } from '../utils/storage.js';
 import { TSHIRT_OPTIONS, formatTshirtSizeWithNumber } from '../utils/tshirtConfig.js';
@@ -188,20 +188,21 @@ export default function Register() {
       {/* SUCCESS SCREEN */}
       {isSuccess ? (
         <div className="bg-white rounded-2xl border border-slate-200/90 p-8 sm:p-12 shadow-xs text-center animate-in fade-in zoom-in-95 duration-200">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-emerald-50 border-2 border-emerald-200 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-5 shadow-2xs">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-emerald-50 border-2 border-emerald-200 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-2xs">
             <CheckCircle className="w-10 h-10 sm:w-12 sm:h-12" />
           </div>
 
-          <span className="text-4xl mb-2 block" role="img" aria-label="Success checkmark">
-            ✅
-          </span>
+          <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 mb-2">
+            <Check className="w-3.5 h-3.5" />
+            <span>Done</span>
+          </div>
 
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Registration Submitted Successfully!
+            Registration Completed!
           </h2>
 
-          <p className="mt-3 text-base text-slate-600 max-w-md mx-auto">
-            Your registration and tournament jersey customization details have been confirmed.
+          <p className="mt-2 text-base text-slate-600 max-w-md mx-auto">
+            Your tournament entry and jersey details have been recorded successfully.
           </p>
 
           {/* Submission Summary Ticket */}
@@ -238,20 +239,33 @@ export default function Register() {
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">Registration Status</span>
-                  <span className="text-emerald-700 font-bold">Confirmed</span>
+                  <span className="text-emerald-700 font-bold flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Done (Registered)
+                  </span>
                 </div>
               </div>
             </div>
           )}
 
-          <div className="mt-8 pt-4">
+          <div className="mt-8 pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={handleResetForm}
+              id="btn-done"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition-colors cursor-pointer"
+            >
+              <Check className="w-4 h-4 text-emerald-600" />
+              <span>Done</span>
+            </button>
+
             <button
               type="button"
               onClick={handleResetForm}
               id="btn-register-another"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl shadow-xs transition-colors cursor-pointer"
             >
-              <RefreshCw className="w-4 h-4" />
+              <UserPlus className="w-4 h-4" />
               <span>Register Another Player</span>
             </button>
           </div>

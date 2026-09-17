@@ -4,7 +4,7 @@ import {
   Users, CheckCircle2, Clock, XCircle, Search, Filter, 
   RotateCcw, ShieldCheck, LogOut, AlertTriangle, 
   Shirt, Phone, Mail, ExternalLink, Calendar, KeyRound, Lock, Check, Eye, EyeOff, X,
-  FileText, Loader2, Database, Copy, RefreshCw, Globe, Server, Download, Share2
+  FileText, Loader2, Database, Copy, RefreshCw, Globe, Server, Download
 } from 'lucide-react';
 
 import StatCard from '../components/StatCard.jsx';
@@ -378,33 +378,6 @@ create policy "Allow public delete" on public.registrations
 
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
-  // Fallback direct mobile sharing/saving handler
-  const handleShareOrSaveMobilePdf = async () => {
-    if (!pdfDownloadNotice) return;
-    try {
-      if (pdfDownloadNotice.blobUrl && navigator.share) {
-        // Fetch blob and trigger native Web Share
-        const res = await fetch(pdfDownloadNotice.blobUrl);
-        const blob = await res.blob();
-        const file = new File([blob], pdfDownloadNotice.fileName, { type: 'application/pdf' });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            title: 'NextGen Cricket 2026 Roster',
-            files: [file],
-          });
-          return;
-        }
-      }
-    } catch {
-      // ignore user cancel
-    }
-
-    // Direct fallback: navigate or open new window
-    if (pdfDownloadNotice.blobUrl) {
-      window.open(pdfDownloadNotice.blobUrl, '_blank') || (window.location.href = pdfDownloadNotice.blobUrl);
-    }
-  };
-
   // Direct manual trigger for the Download File button
   const handleDirectDownloadFileClick = (e) => {
     e.preventDefault();
@@ -647,17 +620,6 @@ create policy "Allow public delete" on public.registrations
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
-            {typeof navigator !== 'undefined' && navigator.share && (
-              <button
-                type="button"
-                onClick={handleShareOrSaveMobilePdf}
-                id="btn-share-mobile-pdf"
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-teal-900 bg-teal-200/90 hover:bg-teal-300 border border-teal-300 rounded-xl transition-colors cursor-pointer text-center"
-              >
-                <Share2 className="w-3.5 h-3.5" />
-                <span>Share / Save</span>
-              </button>
-            )}
             <a
               href={pdfDownloadNotice.blobUrl}
               target="_blank"
@@ -702,9 +664,9 @@ create policy "Allow public delete" on public.registrations
         />
 
         <StatCard
-          title="Verified Payments"
+          title="Verified Players"
           value={stats.verified}
-          subtitle="Approved by admin"
+          subtitle="Approved player registration"
           icon={CheckCircle2}
           variant="teal"
           isActive={statusFilter === 'Verified'}
@@ -712,9 +674,9 @@ create policy "Allow public delete" on public.registrations
         />
 
         <StatCard
-          title="Pending Payments"
+          title="Pending Players"
           value={stats.pending}
-          subtitle="Awaiting manual review"
+          subtitle="Awaiting admin verification"
           icon={Clock}
           variant="amber"
           isActive={statusFilter === 'Pending'}
@@ -722,9 +684,9 @@ create policy "Allow public delete" on public.registrations
         />
 
         <StatCard
-          title="Rejected Payments"
+          title="Rejected Players"
           value={stats.rejected}
-          subtitle="Requires resubmission"
+          subtitle="Declined registration"
           icon={XCircle}
           variant="rose"
           isActive={statusFilter === 'Rejected'}
@@ -773,10 +735,10 @@ create policy "Allow public delete" on public.registrations
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-slate-700 outline-hidden focus:border-teal-600 cursor-pointer"
               >
-                <option value="All">All Statuses</option>
-                <option value="Pending">Pending</option>
-                <option value="Verified">Verified</option>
-                <option value="Rejected">Rejected</option>
+                <option value="All">All Players</option>
+                <option value="Pending">Pending Players</option>
+                <option value="Verified">Verified Players</option>
+                <option value="Rejected">Rejected Players</option>
               </select>
             </div>
 

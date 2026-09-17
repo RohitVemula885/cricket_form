@@ -1,7 +1,7 @@
 /**
- * Robust Mobile and Desktop File Saver Utility
- * Handles mobile browser security sandboxes (Chrome on Android, Safari on iOS,
- * in-app webviews like Instagram/WhatsApp/Facebook browsers, Samsung Internet, etc.)
+ * Direct PDF Downloader Utility
+ * Ensures PDF files download directly to the device storage without invoking
+ * the Web Share dialog or share options.
  */
 
 /**
@@ -20,8 +20,7 @@ export function triggerDirectDownload(blobOrUrl, fileName) {
     const a = document.createElement('a');
     a.href = href;
     a.download = fileName;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
+    a.setAttribute('download', fileName);
     document.body.appendChild(a);
     a.click();
     setTimeout(() => {
@@ -33,8 +32,12 @@ export function triggerDirectDownload(blobOrUrl, fileName) {
       }
     }, 400);
   } catch (err) {
-    console.warn('Anchor download failed, redirecting:', err);
-    window.location.href = href;
+    console.warn('Anchor direct download failed:', err);
+    try {
+      window.location.href = href;
+    } catch {
+      // ignore
+    }
   }
 }
 
@@ -54,85 +57,30 @@ export async function downloadOrOpenPdf(doc, fileName) {
   const blobUrl = URL.createObjectURL(pdfBlob);
   const dataUriString = doc.output('datauristring');
 
-  // 2. Try native Web Share API with files (Android Chrome & iOS Safari support sharing files directly!)
-  if (navigator.share && navigator.canShare) {
-    try {
-      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-      if (navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: 'NextGen Cricket 2026 Roster',
-          text: 'Official Player Registrations PDF',
-          files: [file],
-        });
-        return {
-          success: true,
-          fileName,
-          blobUrl,
-          dataUriString,
-          isMobile,
-          method: 'share',
-        };
-      }
-    } catch (shareErr) {
-      // User cancelled share or browser fell back - proceed to standard open/save
-      if (shareErr.name !== 'AbortError') {
-        console.warn('Web Share API attempt did not complete, falling back:', shareErr);
-      }
-    }
+  // 2. Direct Download - save directly without showing any share dialog
+  try {
+    // jsPDF's built-in save triggers direct file download
+    doc.save(fileName);
+  } catch (saveErr) {
+    console.warn('doc.save failed, falling back to direct anchor download:', saveErr);
+    triggerDirectDownload(pdfBlob, fileName);
   }
 
-  // 3. For iOS: Safari completely ignores the "download" attribute on <a> tags.
-  // Instead, opening the Data URI or Blob in a new tab allows iOS native PDF viewer to render it.
+  // 3. For iOS Safari: if doc.save does not trigger a file save in iOS webkit,
+  // we provide the direct blob link so the user can open/view it directly
   if (isIOS) {
     try {
-      const opened = window.open(blobUrl, '_blank');
-      if (!opened || opened.closed || typeof opened.closed === 'undefined') {
-        window.location.href = blobUrl;
-      }
-    } catch {
-      window.location.href = dataUriString;
-    }
-    return {
-      success: true,
-      fileName,
-      blobUrl,
-      dataUriString,
-      isMobile,
-      method: 'ios-view',
-    };
-  }
-
-  // 4. For Android & Desktop:
-  try {
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.download = fileName;
-    link.setAttribute('download', fileName);
-    document.body.appendChild(link);
-    link.click();
-
-    setTimeout(() => {
-      if (link.parentNode) {
-        document.body.removeChild(link);
-      }
-    }, 500);
-
-    // If mobile Android, also attempt data URI trigger if blob is restricted by browser
-    if (isAndroid) {
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
       setTimeout(() => {
-        try {
-          doc.save(fileName);
-        } catch {
-          // ignore
-        }
-      }, 250);
-    }
-  } catch (err) {
-    console.warn('Anchor tag download failed:', err);
-    try {
-      doc.save(fileName);
-    } catch (saveErr) {
-      console.error('doc.save fallback failed:', saveErr);
+        if (link.parentNode) document.body.removeChild(link);
+      }, 400);
+    } catch {
+      // fallback handled by return
     }
   }
 
@@ -142,6 +90,7 @@ export async function downloadOrOpenPdf(doc, fileName) {
     blobUrl,
     dataUriString,
     isMobile,
-    method: 'download',
+    method: 'direct-download',
   };
 }
+
