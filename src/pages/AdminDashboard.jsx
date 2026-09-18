@@ -16,7 +16,7 @@ import {
   deleteRegistration, 
   resetToSampleData 
 } from '../utils/storage.js';
-import { getAdminUser, logout, getAdminCredentials, updateAdminCredentials, resetAdminCredentials } from '../utils/auth.js';
+import { getAdminUser, logout, getAdminCredentials, updateAdminCredentials, resetAdminCredentials, DEFAULT_ADMIN_CREDENTIALS } from '../utils/auth.js';
 import { generateRegistrationsPDF } from '../utils/pdfExport.js';
 import { triggerDirectDownload } from '../utils/mobilePdfDownloader.js';
 import { 
@@ -278,7 +278,7 @@ create policy "Allow public delete" on public.registrations
       password: def.password,
       name: def.name,
     });
-    setCredsSuccess('Credentials reset to default: admin@cricket.org / admin123');
+    setCredsSuccess(`Credentials reset to default: ${def.email} / ${def.password}`);
   };
 
   const handleLogout = () => {
@@ -498,7 +498,7 @@ create policy "Allow public delete" on public.registrations
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-teal-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
           >
             <KeyRound className="w-4 h-4 text-slate-500" />
-            <span className="hidden sm:inline">Change Password</span>
+            <span className="hidden sm:inline">Change Username &amp; Password</span>
           </button>
 
           <button
@@ -965,7 +965,7 @@ create policy "Allow public delete" on public.registrations
                   onClick={handleResetToDefaultCreds}
                   className="text-xs text-slate-500 hover:text-slate-800 underline font-medium cursor-pointer"
                 >
-                  Reset to Default (admin@cricket.org / admin123)
+                  Reset to Default ({DEFAULT_ADMIN_CREDENTIALS.email} / {DEFAULT_ADMIN_CREDENTIALS.password})
                 </button>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-end">

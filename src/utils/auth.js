@@ -18,8 +18,8 @@ const ADMIN_CONFIG_STORAGE_KEY = 'cricket_admin_credentials_v1';
 
 // Default administrator credentials
 export const DEFAULT_ADMIN_CREDENTIALS = {
-  email: 'rohitvemula@123',
-  password: 'rohit123',
+  email: 'Karan@0409',
+  password: 'Karan04',
   name: 'Match Organizer',
   role: 'Tournament Director',
 };
