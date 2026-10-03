@@ -41,25 +41,25 @@ export default function StatCard({
   return (
     <div
       onClick={onClick}
-      className={`bg-white rounded-xl border p-4 sm:p-5 transition-all shadow-2xs ${
-        onClick ? 'cursor-pointer hover:shadow-xs hover:-translate-y-0.5' : ''
+      className={`bg-white rounded-2xl border p-4 sm:p-5 transition-all shadow-2xs ${
+        onClick ? 'cursor-pointer hover:shadow-xs hover:border-slate-300' : ''
       } ${currentVariant.border}`}
     >
       <div className="flex items-center justify-between">
-        <span className="text-xs sm:text-sm font-semibold text-slate-600 uppercase tracking-wider">
+        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
           {title}
         </span>
-        <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center ${currentVariant.iconBg}`}>
-          <Icon className="w-5 h-5" />
+        <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center ${currentVariant.iconBg}`}>
+          <Icon className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
         </div>
       </div>
 
-      <div className="mt-2.5 sm:mt-3 flex items-baseline gap-2">
-        <span className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${currentVariant.valueColor}`}>
+      <div className="mt-3 flex items-baseline gap-2">
+        <span className={`text-2xl sm:text-3xl font-black font-mono tabular-nums tracking-tight ${currentVariant.valueColor}`}>
           {value}
         </span>
         {subtitle && (
-          <span className="text-xs text-slate-400 font-medium">
+          <span className="text-xs text-slate-400 font-medium truncate">
             {subtitle}
           </span>
         )}

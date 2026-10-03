@@ -32,15 +32,12 @@ export default function Header() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-lg sm:text-xl tracking-tight text-slate-900 group-hover:text-teal-700 transition-colors">
-                  NextGen Cricket 
-                </span>
-                <span className="hidden sm:inline-block px-2 py-0.5 text-xs font-semibold uppercase tracking-wider bg-teal-50 text-teal-700 border border-teal-200/60 rounded-full">
-                  2026 Match
+                <span className="font-black text-lg sm:text-xl tracking-tight text-slate-900 group-hover:text-teal-700 transition-colors">
+                  NextGen Cricket 2026
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-medium hidden sm:block">
-                Player Registration
+                Tournament Registration &amp; Match Squads
               </p>
             </div>
           </Link>

@@ -151,6 +151,7 @@ export default function Register() {
         fullName: formData.fullName,
         mobile: formData.mobile,
         email: formData.email,
+        teamId: '',
         tshirtSize: formData.tshirtSize,
         tshirtName: formData.tshirtName,
         tshirtNumber: formData.tshirtNumber,

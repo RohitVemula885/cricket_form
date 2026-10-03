@@ -4,12 +4,16 @@ import {
   Users, CheckCircle2, Clock, XCircle, Search, Filter, 
   RotateCcw, ShieldCheck, LogOut, AlertTriangle, 
   Shirt, Phone, Mail, ExternalLink, Calendar, KeyRound, Lock, Check, Eye, EyeOff, X,
-  FileText, Loader2, Database, Copy, RefreshCw, Globe, Server, Download
+  FileText, Loader2, Database, Copy, RefreshCw, Globe, Server, Download,
+  Trophy, Settings, Shuffle, ArrowRightLeft, Sparkles, ChevronRight, Hash
 } from 'lucide-react';
 
 import StatCard from '../components/StatCard.jsx';
 import PlayerTable from '../components/PlayerTable.jsx';
 import PlayerModal from '../components/PlayerModal.jsx';
+import TeamsSquadsView from '../components/TeamsSquadsView.jsx';
+import ManageTeamsModal from '../components/ManageTeamsModal.jsx';
+import TeamSelectModal from '../components/TeamSelectModal.jsx';
 import { 
   getRegistrations, 
   updateRegistration, 
@@ -17,8 +21,20 @@ import {
   resetToSampleData 
 } from '../utils/storage.js';
 import { getAdminUser, logout, getAdminCredentials, updateAdminCredentials, resetAdminCredentials, DEFAULT_ADMIN_CREDENTIALS } from '../utils/auth.js';
-import { generateRegistrationsPDF } from '../utils/pdfExport.js';
+import { 
+  generateRegistrationsPDF, 
+  generateTeamsRosterPDF, 
+  generateSingleTeamPDF,
+  downloadAllPlayersCSV 
+} from '../utils/pdfExport.js';
 import { triggerDirectDownload } from '../utils/mobilePdfDownloader.js';
+import { 
+  getStoredTeams, 
+  saveStoredTeams, 
+  resetStoredTeams, 
+  getTeamById, 
+  DEFAULT_TEAMS 
+} from '../utils/teamsConfig.js';
 import { 
   getSupabaseConfig, 
   saveSupabaseConfig, 
@@ -32,9 +48,12 @@ export default function AdminDashboard() {
   const adminUser = getAdminUser();
 
   const [players, setPlayers] = useState([]);
+  const [teams, setTeams] = useState(getStoredTeams());
+  const [activeTab, setActiveTab] = useState('teams'); // 'teams' | 'table'
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [tshirtFilter, setTshirtFilter] = useState('All');
+  const [teamFilter, setTeamFilter] = useState('All');
   const [isLoadingData, setIsLoadingData] = useState(false);
 
   // Modal states
@@ -42,6 +61,8 @@ export default function AdminDashboard() {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [playerToDelete, setPlayerToDelete] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isTeamsModalOpen, setIsTeamsModalOpen] = useState(false);
+  const [teamPickerPlayer, setTeamPickerPlayer] = useState(null);
 
   // Credentials management modal states
   const [isCredsModalOpen, setIsCredsModalOpen] = useState(false);
@@ -190,6 +211,7 @@ create table if not exists public.registrations (
   full_name text not null,
   mobile text not null,
   email text not null,
+  team_id text,
   tshirt_size text,
   tshirt_name text,
   tshirt_number text,
@@ -199,7 +221,8 @@ create table if not exists public.registrations (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- 2. Add jersey customization columns if table was created previously
+-- 2. Add team and jersey customization columns if table was created previously
+alter table public.registrations add column if not exists team_id text;
 alter table public.registrations add column if not exists tshirt_name text;
 alter table public.registrations add column if not exists tshirt_number text;
 
@@ -292,20 +315,24 @@ create policy "Allow public delete" on public.registrations
     const verified = players.filter((p) => p.paymentStatus === 'verified').length;
     const pending = players.filter((p) => p.paymentStatus === 'pending').length;
     const rejected = players.filter((p) => p.paymentStatus === 'rejected').length;
+    const assignedCount = players.filter((p) => Boolean(p.teamId)).length;
+    const unassignedCount = total - assignedCount;
 
-    return { total, verified, pending, rejected };
+    return { total, verified, pending, rejected, assignedCount, unassignedCount };
   }, [players]);
 
   // Dynamic Search & Filtering
   const filteredPlayers = useMemo(() => {
     return players.filter((player) => {
-      // Search matching Name, Mobile, or Email
+      // Search matching Name, Mobile, Email, or Jersey Name
       const query = searchTerm.toLowerCase().trim();
       const matchesSearch =
         !query ||
         player.fullName.toLowerCase().includes(query) ||
         player.mobile.includes(query) ||
-        player.email.toLowerCase().includes(query);
+        player.email.toLowerCase().includes(query) ||
+        (player.tshirtName && player.tshirtName.toLowerCase().includes(query)) ||
+        (player.tshirtNumber && player.tshirtNumber.includes(query));
 
       // Status filter
       const matchesStatus =
@@ -317,9 +344,14 @@ create policy "Allow public delete" on public.registrations
         tshirtFilter === 'All' ||
         player.tshirtSize === tshirtFilter;
 
-      return matchesSearch && matchesStatus && matchesTshirt;
+      // Team filter
+      const matchesTeam =
+        teamFilter === 'All' ||
+        (teamFilter === 'unassigned' ? !player.teamId : player.teamId === teamFilter);
+
+      return matchesSearch && matchesStatus && matchesTshirt && matchesTeam;
     });
-  }, [players, searchTerm, statusFilter, tshirtFilter]);
+  }, [players, searchTerm, statusFilter, tshirtFilter, teamFilter]);
 
   // View Player Modal
   const handleOpenDetails = (player) => {
@@ -332,17 +364,91 @@ create policy "Allow public delete" on public.registrations
     setSelectedPlayer(null);
   };
 
-  // Status Update (Verify / Reject)
+  // Status Update (Verify / Unverify / Reject)
   const handleUpdateStatus = async (id, newStatus) => {
-    const updated = await updateRegistration(id, { paymentStatus: newStatus });
+    const targetPlayer = players.find((p) => p.id === id);
+    const updates = { paymentStatus: newStatus };
+
+    // RULE: If unverifying a player who was assigned to a team squad, remove them from the team
+    if (newStatus !== 'verified' && targetPlayer?.teamId) {
+      updates.teamId = '';
+    }
+
+    const updated = await updateRegistration(id, updates);
     if (updated) {
-      // Update local state
       setPlayers((prev) =>
         prev.map((item) => (item.id === id ? updated : item))
       );
-      // Update modal view
-      setSelectedPlayer(updated);
+      if (selectedPlayer?.id === id) {
+        setSelectedPlayer(updated);
+      }
+      if (teamPickerPlayer?.id === id) {
+        setTeamPickerPlayer(updated);
+      }
     }
+  };
+
+  // Team Assignment Update (Enforce RULE: Pending players must not get to select to go to team option)
+  const handleUpdatePlayerTeam = async (playerId, newTeamId) => {
+    const targetPlayer = players.find((p) => p.id === playerId);
+    if (newTeamId && targetPlayer && targetPlayer.paymentStatus !== 'verified') {
+      alert('Tournament Rule: Pending players cannot be assigned to an official team squad. Please verify the player first!');
+      return;
+    }
+
+    const updated = await updateRegistration(playerId, { teamId: newTeamId });
+    if (updated) {
+      setPlayers((prev) =>
+        prev.map((item) => (item.id === playerId ? updated : item))
+      );
+      if (selectedPlayer?.id === playerId) {
+        setSelectedPlayer(updated);
+      }
+      if (teamPickerPlayer?.id === playerId) {
+        setTeamPickerPlayer(updated);
+      }
+    }
+  };
+
+  // Auto-distribute unassigned draft pool players across 8 teams (ONLY verified players)
+  const handleAutoDistributeTeams = async () => {
+    // RULE: Pending players must not get to select to go to team option
+    const eligibleVerified = players.filter((p) => p.paymentStatus === 'verified' && !p.teamId);
+    if (eligibleVerified.length === 0) {
+      const pendingCount = players.filter((p) => p.paymentStatus !== 'verified' && !p.teamId).length;
+      if (pendingCount > 0) {
+        alert(`Cannot auto-balance: All ${pendingCount} unassigned players are PENDING verification. Only verified players can be allocated to teams. Please verify them first!`);
+      } else {
+        alert('All verified players are already assigned to tournament teams!');
+      }
+      return;
+    }
+
+    if (window.confirm(`Auto-balance ${eligibleVerified.length} verified players evenly across the 8 teams? (Pending players will remain in verification queue)`)) {
+      let teamIndex = 0;
+      const updatedList = [...players];
+      for (const p of eligibleVerified) {
+        const assignedTeamId = teams[teamIndex % 8].id;
+        await updateRegistration(p.id, { teamId: assignedTeamId });
+        const idx = updatedList.findIndex((item) => item.id === p.id);
+        if (idx !== -1) {
+          updatedList[idx] = { ...updatedList[idx], teamId: assignedTeamId };
+        }
+        teamIndex++;
+      }
+      setPlayers(updatedList);
+    }
+  };
+
+  const handleSaveTeams = (newTeams) => {
+    saveStoredTeams(newTeams);
+    setTeams(newTeams);
+  };
+
+  const handleResetTeams = () => {
+    const def = resetStoredTeams();
+    setTeams(def);
+    return def;
   };
 
   // Delete Player confirmation
@@ -367,12 +473,13 @@ create policy "Allow public delete" on public.registrations
   };
 
   const handleResetSampleData = () => {
-    if (window.confirm('Reset registration list to default sample players?')) {
+    if (window.confirm('Reset registration list to default sample players across 8 teams?')) {
       const reset = resetToSampleData();
       setPlayers(reset);
       setSearchTerm('');
       setStatusFilter('All');
       setTshirtFilter('All');
+      setTeamFilter('All');
     }
   };
 
@@ -389,9 +496,68 @@ create policy "Allow public delete" on public.registrations
     }
   };
 
-  // Download Comprehensive Player Roster as PDF
+  // 1. Download 8-Teams Separation & Jersey Roster PDF
+  const handleDownloadTeamsPDF = async () => {
+    if (players.length === 0) {
+      alert('No player registrations found to generate PDF.');
+      return;
+    }
+
+    try {
+      setIsExportingPdf(true);
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      const result = await generateTeamsRosterPDF(players, teams, {
+        adminName: adminUser?.name || 'Tournament Director',
+      });
+
+      if (result && (result.blobUrl || result.dataUriString)) {
+        setPdfDownloadNotice({
+          fileName: result.fileName,
+          blobUrl: result.blobUrl,
+          dataUriString: result.dataUriString,
+          isMobile: result.isMobile,
+          recordCount: result.recordCount,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to generate 8-Teams PDF roster:', err);
+      alert('Could not generate 8-teams PDF roster. Please try again.');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  // 2. Download Individual Team PDF Sheet
+  const handleDownloadSingleTeamPDF = async (team) => {
+    const squad = players.filter((p) => p.teamId === team.id);
+    try {
+      setIsExportingPdf(true);
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      const result = await generateSingleTeamPDF(team, squad, {
+        adminName: adminUser?.name || 'Tournament Director',
+      });
+
+      if (result && (result.blobUrl || result.dataUriString)) {
+        setPdfDownloadNotice({
+          fileName: result.fileName,
+          blobUrl: result.blobUrl,
+          dataUriString: result.dataUriString,
+          isMobile: result.isMobile,
+          recordCount: result.recordCount,
+        });
+      }
+    } catch (err) {
+      console.error(`Failed to generate PDF for ${team.name}:`, err);
+      alert(`Could not generate PDF for ${team.name}.`);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  // 3. Download Comprehensive Master List as PDF
   const handleDownloadPDF = async () => {
-    // If filter/search is active, export the filtered view, otherwise all players
     const listToExport = filteredPlayers.length > 0 ? filteredPlayers : players;
 
     if (listToExport.length === 0) {
@@ -401,7 +567,6 @@ create policy "Allow public delete" on public.registrations
 
     try {
       setIsExportingPdf(true);
-      // Small tick so UI shows loading feedback
       await new Promise((resolve) => setTimeout(resolve, 80));
 
       const result = await generateRegistrationsPDF(listToExport, {
@@ -423,6 +588,16 @@ create policy "Allow public delete" on public.registrations
     } finally {
       setIsExportingPdf(false);
     }
+  };
+
+  // 4. Download Complete Player List with All Details as CSV / Excel
+  const handleDownloadCSV = () => {
+    const listToExport = filteredPlayers.length > 0 ? filteredPlayers : players;
+    if (listToExport.length === 0) {
+      alert('No player registrations found to export.');
+      return;
+    }
+    downloadAllPlayersCSV(listToExport, teams);
   };
 
   return (
@@ -498,35 +673,74 @@ create policy "Allow public delete" on public.registrations
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-teal-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
           >
             <KeyRound className="w-4 h-4 text-slate-500" />
-            <span className="hidden sm:inline">Change Username &amp; Password</span>
+            <span className="hidden sm:inline">Change Password</span>
           </button>
 
+          {/* Manage 8 Teams Button */}
+          <button
+            type="button"
+            onClick={() => setIsTeamsModalOpen(true)}
+            id="btn-manage-teams-header"
+            title="Customize 8 Tournament Team Names and Codes"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-teal-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
+          >
+            <Settings className="w-4 h-4 text-slate-500" />
+            <span className="hidden sm:inline">8 Teams</span>
+          </button>
+
+          {/* Primary Action: Download All Players with Full Details */}
           <button
             type="button"
             onClick={handleDownloadPDF}
             disabled={isExportingPdf || players.length === 0}
-            id="btn-download-pdf"
-            title="Download official player registrations and payment roster as PDF"
+            id="btn-download-all-players-pdf-header"
+            title="Download complete roster of all registered players with all details as PDF"
             className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed border border-teal-700/30 rounded-xl shadow-2xs transition-colors cursor-pointer"
           >
             {isExportingPdf ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin text-white" />
-                <span>Generating PDF...</span>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                <span>Generating...</span>
               </>
             ) : (
               <>
-                <FileText className="w-4 h-4 text-teal-100" />
-                <span>Download PDF</span>
+                <FileText className="w-3.5 h-3.5" />
+                <span>Download Players (All Details PDF)</span>
               </>
             )}
+          </button>
+
+          {/* Secondary Action: Download All Details as Excel / CSV */}
+          <button
+            type="button"
+            onClick={handleDownloadCSV}
+            disabled={players.length === 0}
+            id="btn-download-all-players-csv-header"
+            title="Download complete details of all players as Excel / CSV spreadsheet"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 hover:text-teal-700 bg-white hover:bg-slate-50 disabled:opacity-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <span>Excel/CSV</span>
+          </button>
+
+          {/* Tertiary Action: Download 8-Teams & Jersey Names Separation PDF */}
+          <button
+            type="button"
+            onClick={handleDownloadTeamsPDF}
+            disabled={isExportingPdf || players.length === 0}
+            id="btn-download-teams-pdf-header"
+            title="Download Official 8-Teams Roster PDF separated by team with player jersey names"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-teal-700 bg-white hover:bg-slate-50 disabled:opacity-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
+          >
+            <Trophy className="w-3.5 h-3.5 text-amber-500" />
+            <span className="hidden sm:inline">8-Teams PDF</span>
           </button>
 
           <button
             type="button"
             onClick={handleLogout}
             id="btn-admin-logout"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100/70 border border-rose-200 rounded-xl transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100/70 border border-rose-200 rounded-xl transition-colors cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
             <span>Logout</span>
@@ -659,8 +873,11 @@ create policy "Allow public delete" on public.registrations
           subtitle="Registered athletes"
           icon={Users}
           variant="slate"
-          isActive={statusFilter === 'All'}
-          onClick={() => setStatusFilter('All')}
+          isActive={statusFilter === 'All' && teamFilter === 'All'}
+          onClick={() => {
+            setStatusFilter('All');
+            setTeamFilter('All');
+          }}
         />
 
         <StatCard
@@ -674,148 +891,299 @@ create policy "Allow public delete" on public.registrations
         />
 
         <StatCard
+          title="8 Teams Allocated"
+          value={`${stats.assignedCount}/${stats.total}`}
+          subtitle={`${stats.unassignedCount} in draft pool`}
+          icon={Trophy}
+          variant="amber"
+          isActive={activeTab === 'teams'}
+          onClick={() => setActiveTab('teams')}
+        />
+
+        <StatCard
           title="Pending Players"
           value={stats.pending}
           subtitle="Awaiting admin verification"
           icon={Clock}
-          variant="amber"
+          variant="rose"
           isActive={statusFilter === 'Pending'}
           onClick={() => setStatusFilter('Pending')}
         />
-
-        <StatCard
-          title="Rejected Players"
-          value={stats.rejected}
-          subtitle="Declined registration"
-          icon={XCircle}
-          variant="rose"
-          isActive={statusFilter === 'Rejected'}
-          onClick={() => setStatusFilter('Rejected')}
-        />
       </div>
 
-      {/* 7. SEARCH AND FILTER SECTION */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-2xs space-y-4">
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-          
-          {/* Search Box */}
-          <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-              <Search className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              id="admin-search-input"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by Player Name, Mobile (e.g. 9876543210), or Email..."
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-teal-600 focus:bg-white rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 outline-hidden transition-colors"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-semibold text-slate-400 hover:text-slate-600"
-              >
-                Clear
-              </button>
-            )}
-          </div>
+      {/* 6. VIEW MODE SWITCHER TABS */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setActiveTab('teams')}
+            id="tab-8-teams-view"
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              activeTab === 'teams'
+                ? 'bg-white text-teal-700 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Trophy className="w-4 h-4 text-teal-600" />
+            <span>8 Teams &amp; Squad Separation</span>
+            <span className="px-1.5 py-0.5 rounded-full text-2xs bg-teal-50 text-teal-700 font-extrabold border border-teal-200">
+              8 Teams
+            </span>
+          </button>
 
-          {/* Filters Bar */}
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Status Filter */}
-            <div className="flex items-center gap-2">
-              <label htmlFor="status-filter" className="text-xs font-semibold text-slate-500 whitespace-nowrap">
-                Status:
-              </label>
-              <select
-                id="status-filter"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-slate-700 outline-hidden focus:border-teal-600 cursor-pointer"
-              >
-                <option value="All">All Players</option>
-                <option value="Pending">Pending Players</option>
-                <option value="Verified">Verified Players</option>
-                <option value="Rejected">Rejected Players</option>
-              </select>
-            </div>
-
-            {/* T-Shirt Size Filter */}
-            <div className="flex items-center gap-2">
-              <label htmlFor="tshirt-filter" className="text-xs font-semibold text-slate-500 whitespace-nowrap">
-                T-Shirt:
-              </label>
-              <select
-                id="tshirt-filter"
-                value={tshirtFilter}
-                onChange={(e) => setTshirtFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-slate-700 outline-hidden focus:border-teal-600 cursor-pointer"
-              >
-                <option value="All">All Sizes</option>
-                <option value="S">S</option>
-                <option value="M">M</option>
-                <option value="L">L</option>
-                <option value="XL">XL</option>
-                <option value="XXL">XXL</option>
-              </select>
-            </div>
-
-            {/* Reset Filters button */}
-            {(searchTerm || statusFilter !== 'All' || tshirtFilter !== 'All') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchTerm('');
-                  setStatusFilter('All');
-                  setTshirtFilter('All');
-                }}
-                className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-teal-700 hover:bg-teal-50 rounded-xl border border-teal-200 transition-colors cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reset Filters</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={handleResetSampleData}
-              title="Reset records to default sample demo data"
-              className="text-xs text-slate-400 hover:text-slate-600 underline font-medium ml-auto"
-            >
-              Reset Sample Data
-            </button>
-          </div>
-
+          <button
+            type="button"
+            onClick={() => setActiveTab('table')}
+            id="tab-all-players-table"
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              activeTab === 'table'
+                ? 'bg-white text-teal-700 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Users className="w-4 h-4 text-slate-500" />
+            <span>All Registrations Table</span>
+            <span className="px-1.5 py-0.5 rounded-full text-2xs bg-slate-200 text-slate-700 font-bold">
+              {players.length}
+            </span>
+          </button>
         </div>
 
-        {/* Active Filter Count Summary */}
-        <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+        {/* Tab Quick Stats & Action Info */}
+        <div className="flex items-center justify-between sm:justify-end gap-3 px-3 text-xs text-slate-500">
           <span>
-            Showing <strong className="text-slate-800">{filteredPlayers.length}</strong> of{' '}
-            <strong className="text-slate-800">{players.length}</strong> registrations
+            Squad Allocation:{' '}
+            <strong className="text-teal-700 font-bold">
+              {stats.assignedCount} / {stats.total}
+            </strong>{' '}
+            Players
           </span>
-
-          {(statusFilter !== 'All' || tshirtFilter !== 'All' || searchTerm) && (
-            <span className="text-teal-700 font-medium">Filtered Results Active</span>
+          {stats.unassignedCount > 0 ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+              {stats.unassignedCount} in draft pool
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+              All 8 Teams Complete
+            </span>
           )}
         </div>
       </div>
 
-      {/* 6. PLAYER TABLE COMPONENT */}
-      <PlayerTable
-        players={filteredPlayers}
-        onViewDetails={handleOpenDetails}
-        onDeletePlayer={handleOpenDeleteConfirm}
-      />
+      {/* VIEW CONTENT: TAB 1 - 8 TEAMS SQUAD SEPARATION */}
+      {activeTab === 'teams' && (
+        <TeamsSquadsView
+          players={players}
+          teams={teams}
+          onUpdatePlayerTeam={handleUpdatePlayerTeam}
+          onViewPlayerDetails={handleOpenDetails}
+          onDownloadTeamsPDF={handleDownloadTeamsPDF}
+          onDownloadSingleTeamPDF={handleDownloadSingleTeamPDF}
+          onDownloadAllPlayersPDF={handleDownloadPDF}
+          onDownloadAllPlayersCSV={handleDownloadCSV}
+          onOpenManageTeams={() => setIsTeamsModalOpen(true)}
+          onAutoDistribute={handleAutoDistributeTeams}
+          onVerifyPlayer={(id) => handleUpdateStatus(id, 'verified')}
+          onUnverifyPlayer={(id) => handleUpdateStatus(id, 'pending')}
+          onUpdateStatus={handleUpdateStatus}
+          isExportingPdf={isExportingPdf}
+        />
+      )}
+
+      {/* VIEW CONTENT: TAB 2 - MASTER REGISTRATIONS TABLE */}
+      {activeTab === 'table' && (
+        <>
+          {/* SEARCH AND FILTER SECTION */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-2xs space-y-4">
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+              
+              {/* Search Box */}
+              <div className="relative flex-1">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <Search className="w-4 h-4" />
+                </div>
+                <input
+                  type="text"
+                  id="admin-search-input"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search by Player Name, Mobile (e.g. 9876543210), Email, or Jersey Name..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-teal-600 focus:bg-white rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 outline-hidden transition-colors"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-semibold text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Filters Bar */}
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Team Filter */}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="team-filter" className="text-xs font-semibold text-slate-500 whitespace-nowrap">
+                    Team:
+                  </label>
+                  <select
+                    id="team-filter"
+                    value={teamFilter}
+                    onChange={(e) => setTeamFilter(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-slate-700 outline-hidden focus:border-teal-600 cursor-pointer"
+                  >
+                    <option value="All">All Teams</option>
+                    <option value="unassigned">Draft Pool (Unassigned)</option>
+                    {teams.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.shortName})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Status Filter */}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="status-filter" className="text-xs font-semibold text-slate-500 whitespace-nowrap">
+                    Status:
+                  </label>
+                  <select
+                    id="status-filter"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-slate-700 outline-hidden focus:border-teal-600 cursor-pointer"
+                  >
+                    <option value="All">All Players</option>
+                    <option value="Pending">Pending Players</option>
+                    <option value="Verified">Verified Players</option>
+                    <option value="Rejected">Rejected Players</option>
+                  </select>
+                </div>
+
+                {/* T-Shirt Size Filter */}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="tshirt-filter" className="text-xs font-semibold text-slate-500 whitespace-nowrap">
+                    T-Shirt:
+                  </label>
+                  <select
+                    id="tshirt-filter"
+                    value={tshirtFilter}
+                    onChange={(e) => setTshirtFilter(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-slate-700 outline-hidden focus:border-teal-600 cursor-pointer"
+                  >
+                    <option value="All">All Sizes</option>
+                    <option value="S">S</option>
+                    <option value="M">M</option>
+                    <option value="L">L</option>
+                    <option value="XL">XL</option>
+                    <option value="2XL">2XL</option>
+                  </select>
+                </div>
+
+                {/* Reset Filters button */}
+                {(searchTerm || statusFilter !== 'All' || tshirtFilter !== 'All' || teamFilter !== 'All') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setStatusFilter('All');
+                      setTshirtFilter('All');
+                      setTeamFilter('All');
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-teal-700 hover:bg-teal-50 rounded-xl border border-teal-200 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reset Filters</span>
+                  </button>
+                )}
+
+                {/* Download All Players Buttons Toolbar */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDownloadPDF}
+                    disabled={isExportingPdf || players.length === 0}
+                    id="btn-download-all-players-table-toolbar"
+                    title="Download complete directory of all registered players with all details as PDF"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-50 rounded-xl shadow-2xs transition-colors cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Download Players (All Details PDF)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDownloadCSV}
+                    disabled={players.length === 0}
+                    id="btn-download-all-players-csv-table-toolbar"
+                    title="Download complete details of all players as Excel / CSV spreadsheet"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 hover:text-teal-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Export CSV</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsTeamsModalOpen(true)}
+                  id="btn-open-teams-modal-table-view"
+                  title="Customize the 8 team names and brand colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 hover:text-teal-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
+                >
+                  <Settings className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Customize Teams &amp; Colors</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResetSampleData}
+                  title="Reset records to default sample demo data across 8 teams"
+                  className="text-xs text-slate-400 hover:text-slate-600 underline font-medium ml-auto cursor-pointer"
+                >
+                  Reset Sample Data
+                </button>
+              </div>
+
+            </div>
+
+            {/* Active Filter Count Summary */}
+            <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+              <span>
+                Showing <strong className="text-slate-800">{filteredPlayers.length}</strong> of{' '}
+                <strong className="text-slate-800">{players.length}</strong> registrations
+              </span>
+
+              {(statusFilter !== 'All' || tshirtFilter !== 'All' || teamFilter !== 'All' || searchTerm) && (
+                <span className="text-teal-700 font-medium">Filtered Results Active</span>
+              )}
+            </div>
+          </div>
+
+          {/* PLAYER TABLE COMPONENT */}
+          <PlayerTable
+            players={filteredPlayers}
+            teams={teams}
+            onViewDetails={handleOpenDetails}
+            onDeletePlayer={handleOpenDeleteConfirm}
+            onUpdatePlayerTeam={handleUpdatePlayerTeam}
+            onOpenTeamPicker={(player) => setTeamPickerPlayer(player)}
+            onUpdateStatus={handleUpdateStatus}
+          />
+        </>
+      )}
 
       {/* 8. PLAYER DETAILS MODAL */}
       <PlayerModal
         player={selectedPlayer}
+        teams={teams}
         isOpen={isDetailsModalOpen}
         onClose={handleCloseDetails}
         onUpdateStatus={handleUpdateStatus}
+        onUpdateTeam={handleUpdatePlayerTeam}
+        onOpenTeamPicker={(player) => setTeamPickerPlayer(player)}
       />
 
       {/* 9. DELETE CONFIRMATION MODAL */}
@@ -1210,6 +1578,33 @@ create policy "Allow public delete" on public.registrations
           </div>
         </div>
       )}
+
+      {/* 10. MANAGE 8 TEAMS MODAL */}
+      <ManageTeamsModal
+        isOpen={isTeamsModalOpen}
+        onClose={() => setIsTeamsModalOpen(false)}
+        teams={teams}
+        onSaveTeams={handleSaveTeams}
+        onResetTeams={handleResetTeams}
+      />
+
+      {/* 11. UNIFIED MODERN TEAM SELECT MODAL */}
+      <TeamSelectModal
+        isOpen={Boolean(teamPickerPlayer)}
+        onClose={() => setTeamPickerPlayer(null)}
+        player={teamPickerPlayer}
+        teams={teams}
+        players={players}
+        onSelectTeam={handleUpdatePlayerTeam}
+        onVerifyPlayer={async (id) => {
+          await handleUpdateStatus(id, 'verified');
+          setTeamPickerPlayer((prev) => (prev ? { ...prev, paymentStatus: 'verified' } : null));
+        }}
+        onUnverifyPlayer={async (id) => {
+          await handleUpdateStatus(id, 'pending');
+          setTeamPickerPlayer((prev) => (prev ? { ...prev, paymentStatus: 'pending', teamId: '' } : null));
+        }}
+      />
 
     </div>
   );

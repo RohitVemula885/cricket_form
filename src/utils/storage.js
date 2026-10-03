@@ -14,65 +14,196 @@ export const INITIAL_SAMPLE_PLAYERS = [
     fullName: 'Rohit Vemula',
     mobile: '9876543210',
     email: 'rohitvemula154@gmail.com',
+    teamId: 'team-1',
     tshirtSize: 'L',
     tshirtName: 'ROHIT',
     tshirtNumber: '7',
     paymentScreenshot: SAMPLE_RECEIPT_1,
-    paymentStatus: 'pending',
+    paymentStatus: 'verified',
     createdAt: '2026-09-15T09:40:00.000Z',
-    notes: 'Submitted via portal. Awaiting organizer manual reconciliation.',
+    notes: 'Opening Batsman & Captain. Payment verified.',
   },
   {
     id: 'REG-2026-002',
     fullName: 'Virat K. Sharma',
     mobile: '9823456781',
     email: 'virat.sharma@example.com',
+    teamId: 'team-2',
     tshirtSize: 'M',
     tshirtName: 'VIRAT',
     tshirtNumber: '18',
     paymentScreenshot: SAMPLE_RECEIPT_2,
     paymentStatus: 'verified',
     createdAt: '2026-09-14T14:22:00.000Z',
-    notes: 'Payment confirmed in tournament bank account.',
+    notes: 'Top Order Anchor. Payment confirmed in tournament bank account.',
   },
   {
     id: 'REG-2026-003',
     fullName: 'Shreyas Iyer',
     mobile: '9711223344',
     email: 'shreyas.cricket@example.com',
+    teamId: 'team-3',
     tshirtSize: 'XL',
     tshirtName: 'SHREYAS',
     tshirtNumber: '96',
     paymentScreenshot: SAMPLE_RECEIPT_1,
     paymentStatus: 'verified',
     createdAt: '2026-09-14T16:05:00.000Z',
-    notes: 'Payment verified with match treasurer.',
+    notes: 'Middle Order Batsman. Payment verified with match treasurer.',
   },
   {
     id: 'REG-2026-004',
     fullName: 'Jasprit Bumrah',
     mobile: '9899887766',
     email: 'j.bumrah@example.com',
+    teamId: 'team-4',
     tshirtSize: 'M',
     tshirtName: 'BOOM BOOM',
     tshirtNumber: '93',
     paymentScreenshot: SAMPLE_RECEIPT_2,
-    paymentStatus: 'pending',
+    paymentStatus: 'verified',
     createdAt: '2026-09-15T11:12:00.000Z',
-    notes: 'Transaction under review.',
+    notes: 'Pace Spearhead.',
   },
   {
     id: 'REG-2026-005',
     fullName: 'Kishan Patel',
     mobile: '9123456789',
     email: 'kishan.p@example.com',
+    teamId: 'team-5',
     tshirtSize: 'S',
     tshirtName: 'KISHAN',
     tshirtNumber: '32',
     paymentScreenshot: SAMPLE_RECEIPT_1,
-    paymentStatus: 'rejected',
+    paymentStatus: 'pending',
     createdAt: '2026-09-13T10:15:00.000Z',
-    notes: 'Screenshot blurred and UTR number could not be validated.',
+    notes: 'Wicketkeeper Batsman.',
+  },
+  {
+    id: 'REG-2026-006',
+    fullName: 'Rishabh Pant',
+    mobile: '9811223355',
+    email: 'rishabh.p@example.com',
+    teamId: 'team-6',
+    tshirtSize: 'L',
+    tshirtName: 'PANT',
+    tshirtNumber: '17',
+    paymentScreenshot: SAMPLE_RECEIPT_2,
+    paymentStatus: 'verified',
+    createdAt: '2026-09-16T12:00:00.000Z',
+    notes: 'Aggressive Finisher.',
+  },
+  {
+    id: 'REG-2026-007',
+    fullName: 'Sanju Samson',
+    mobile: '9845012345',
+    email: 'sanju.s@example.com',
+    teamId: 'team-7',
+    tshirtSize: 'L',
+    tshirtName: 'SANSON',
+    tshirtNumber: '9',
+    paymentScreenshot: SAMPLE_RECEIPT_1,
+    paymentStatus: 'verified',
+    createdAt: '2026-09-16T13:30:00.000Z',
+    notes: 'Wicketkeeper Captain.',
+  },
+  {
+    id: 'REG-2026-008',
+    fullName: 'Rashid Khan',
+    mobile: '9789012345',
+    email: 'rashid.k@example.com',
+    teamId: 'team-8',
+    tshirtSize: 'S',
+    tshirtName: 'RASHID',
+    tshirtNumber: '19',
+    paymentScreenshot: SAMPLE_RECEIPT_2,
+    paymentStatus: 'verified',
+    createdAt: '2026-09-16T14:15:00.000Z',
+    notes: 'Spin All-rounder.',
+  },
+  {
+    id: 'REG-2026-009',
+    fullName: 'Shubman Gill',
+    mobile: '9923456780',
+    email: 'shubman.g@example.com',
+    teamId: 'team-1',
+    tshirtSize: 'M',
+    tshirtName: 'GILL',
+    tshirtNumber: '77',
+    paymentScreenshot: SAMPLE_RECEIPT_1,
+    paymentStatus: 'verified',
+    createdAt: '2026-09-17T08:20:00.000Z',
+    notes: 'Top Order.',
+  },
+  {
+    id: 'REG-2026-010',
+    fullName: 'Suryakumar Yadav',
+    mobile: '9833445566',
+    email: 'sky.cricket@example.com',
+    teamId: 'team-2',
+    tshirtSize: 'L',
+    tshirtName: 'SKY 360',
+    tshirtNumber: '63',
+    paymentScreenshot: SAMPLE_RECEIPT_2,
+    paymentStatus: 'verified',
+    createdAt: '2026-09-17T09:45:00.000Z',
+    notes: '360 degree batsman.',
+  },
+  {
+    id: 'REG-2026-011',
+    fullName: 'Ravindra Jadeja',
+    mobile: '9877112233',
+    email: 'jaddu.allrounder@example.com',
+    teamId: 'team-3',
+    tshirtSize: 'L',
+    tshirtName: 'JADDU',
+    tshirtNumber: '8',
+    paymentScreenshot: SAMPLE_RECEIPT_1,
+    paymentStatus: 'verified',
+    createdAt: '2026-09-17T10:10:00.000Z',
+    notes: 'All-rounder.',
+  },
+  {
+    id: 'REG-2026-012',
+    fullName: 'Mohammed Shami',
+    mobile: '9866554433',
+    email: 'm.shami@example.com',
+    teamId: 'team-4',
+    tshirtSize: 'XL',
+    tshirtName: 'SHAMI',
+    tshirtNumber: '11',
+    paymentScreenshot: SAMPLE_RECEIPT_2,
+    paymentStatus: 'pending',
+    createdAt: '2026-09-17T11:00:00.000Z',
+    notes: 'Fast bowler.',
+  },
+  {
+    id: 'REG-2026-013',
+    fullName: 'Rinku Singh',
+    mobile: '9890123456',
+    email: 'rinku.finisher@example.com',
+    teamId: 'team-5',
+    tshirtSize: 'M',
+    tshirtName: 'RINKU',
+    tshirtNumber: '35',
+    paymentScreenshot: SAMPLE_RECEIPT_1,
+    paymentStatus: 'verified',
+    createdAt: '2026-09-17T12:30:00.000Z',
+    notes: 'Death overs power hitter.',
+  },
+  {
+    id: 'REG-2026-014',
+    fullName: 'Hardik Pandya',
+    mobile: '9820011223',
+    email: 'hardik.p@example.com',
+    teamId: '',
+    tshirtSize: 'M',
+    tshirtName: 'PANDYA',
+    tshirtNumber: '33',
+    paymentScreenshot: SAMPLE_RECEIPT_2,
+    paymentStatus: 'pending',
+    createdAt: '2026-09-17T13:40:00.000Z',
+    notes: 'Draft pool - unassigned.',
   },
 ];
 
@@ -83,6 +214,7 @@ function mapFromDb(row) {
   if (!row) return null;
   let tshirtName = row.tshirt_name || row.tshirtName || '';
   let tshirtNumber = row.tshirt_number || row.tshirtNumber || '';
+  let teamId = row.team_id || row.teamId || '';
 
   // Fallback: parse from notes if stored in notes due to older table schema
   if (!tshirtName && row.notes && row.notes.includes('Jersey Name:')) {
@@ -93,12 +225,17 @@ function mapFromDb(row) {
     const match = row.notes.match(/Jersey #:\s*([^,|]+)/i);
     if (match) tshirtNumber = match[1].trim();
   }
+  if (!teamId && row.notes && row.notes.includes('Team:')) {
+    const match = row.notes.match(/Team:\s*([^,|]+)/i);
+    if (match) teamId = match[1].trim();
+  }
 
   return {
     id: row.id,
     fullName: row.full_name || row.fullName || '',
     mobile: row.mobile || '',
     email: row.email || '',
+    teamId: teamId || '',
     tshirtSize: row.tshirt_size || row.tshirtSize || '',
     tshirtName,
     tshirtNumber,
@@ -118,6 +255,7 @@ function mapToDb(player) {
     full_name: player.fullName,
     mobile: player.mobile,
     email: player.email,
+    team_id: player.teamId || '',
     tshirt_size: player.tshirtSize,
     tshirt_name: player.tshirtName || '',
     tshirt_number: player.tshirtNumber || '',
@@ -246,6 +384,7 @@ export async function addRegistration(player) {
     fullName: (player.fullName || '').trim(),
     mobile: (player.mobile || '').trim(),
     email: (player.email || '').trim().toLowerCase(),
+    teamId: player.teamId || '',
     tshirtSize: player.tshirtSize || 'M',
     tshirtName: (player.tshirtName || '').trim().toUpperCase(),
     tshirtNumber: (player.tshirtNumber || '').trim(),
@@ -272,7 +411,8 @@ export async function addRegistration(player) {
         const fallbackRow = { ...rowToInsert };
         delete fallbackRow.tshirt_name;
         delete fallbackRow.tshirt_number;
-        fallbackRow.notes = `${fallbackRow.notes || ''} | Jersey Name: ${newRegistration.tshirtName || 'N/A'}, Jersey #: ${newRegistration.tshirtNumber || 'N/A'}`;
+        delete fallbackRow.team_id;
+        fallbackRow.notes = `${fallbackRow.notes || ''} | Team: ${newRegistration.teamId || 'Unassigned'} | Jersey Name: ${newRegistration.tshirtName || 'N/A'}, Jersey #: ${newRegistration.tshirtNumber || 'N/A'}`;
         
         const fallbackRes = await supabase
           .from('registrations')
@@ -296,6 +436,9 @@ export async function addRegistration(player) {
         }
         if (!savedPlayer.tshirtNumber && newRegistration.tshirtNumber) {
           savedPlayer.tshirtNumber = newRegistration.tshirtNumber;
+        }
+        if (!savedPlayer.teamId && newRegistration.teamId) {
+          savedPlayer.teamId = newRegistration.teamId;
         }
         // Update local cache
         setLocalRegistrations([savedPlayer, ...localList]);
@@ -331,6 +474,7 @@ export async function updateRegistration(id, updates) {
       if (updates.fullName !== undefined) dbUpdates.full_name = updates.fullName;
       if (updates.mobile !== undefined) dbUpdates.mobile = updates.mobile;
       if (updates.email !== undefined) dbUpdates.email = updates.email;
+      if (updates.teamId !== undefined) dbUpdates.team_id = updates.teamId;
       if (updates.tshirtSize !== undefined) dbUpdates.tshirt_size = updates.tshirtSize;
 
       const { data, error } = await supabase
