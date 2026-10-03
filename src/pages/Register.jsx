@@ -307,6 +307,39 @@ export default function Register() {
             </div>
           </div>
 
+          {/* 8 Participating Teams Showcase */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Trophy className="w-3.5 h-3.5 text-teal-600" />
+                <span>8 Official Tournament Teams</span>
+              </span>
+              <span className="text-2xs font-bold text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200">
+                Squad Allocation by Admin
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { name: 'Royal Strikers', code: 'RS', color: '#dc2626', bg: 'bg-red-50 text-red-700 border-red-200' },
+                { name: 'Garuda Warriors', code: 'GW', color: '#2563eb', bg: 'bg-blue-50 text-blue-700 border-blue-200' },
+                { name: 'Hitman 11', code: 'H11', color: '#ea580c', bg: 'bg-orange-50 text-orange-700 border-orange-200' },
+                { name: 'Ozel Prime Strikers', code: 'OPS', color: '#7c3aed', bg: 'bg-purple-50 text-purple-700 border-purple-200' },
+                { name: 'Supreme Strikers', code: 'SS', color: '#16a34a', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                { name: 'Invincibles', code: 'INV', color: '#0284c7', bg: 'bg-sky-50 text-sky-700 border-sky-200' },
+                { name: 'Pathan Tigers', code: 'PT', color: '#d97706', bg: 'bg-amber-50 text-amber-800 border-amber-300' },
+                { name: 'Pitchside', code: 'PS', color: '#0d9488', bg: 'bg-teal-50 text-teal-700 border-teal-200' },
+              ].map((team) => (
+                <div
+                  key={team.code}
+                  className={`flex items-center gap-2 p-2 rounded-xl border text-xs font-bold transition-transform hover:scale-[1.02] ${team.bg}`}
+                >
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
+                  <span className="truncate">{team.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Registration Card */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 sm:p-8 lg:p-10">
             <div className="border-b border-slate-100 pb-5 mb-6 sm:mb-8">

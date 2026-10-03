@@ -14,6 +14,7 @@ import PlayerModal from '../components/PlayerModal.jsx';
 import TeamsSquadsView from '../components/TeamsSquadsView.jsx';
 import ManageTeamsModal from '../components/ManageTeamsModal.jsx';
 import TeamSelectModal from '../components/TeamSelectModal.jsx';
+import DownloadPlayersModal from '../components/DownloadPlayersModal.jsx';
 import { 
   getRegistrations, 
   updateRegistration, 
@@ -63,6 +64,7 @@ export default function AdminDashboard() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isTeamsModalOpen, setIsTeamsModalOpen] = useState(false);
   const [teamPickerPlayer, setTeamPickerPlayer] = useState(null);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
 
   // Credentials management modal states
   const [isCredsModalOpen, setIsCredsModalOpen] = useState(false);
@@ -681,55 +683,65 @@ create policy "Allow public delete" on public.registrations
             type="button"
             onClick={() => setIsTeamsModalOpen(true)}
             id="btn-manage-teams-header"
-            title="Customize 8 Tournament Team Names and Codes"
+            title="Customize 8 Tournament Team Names (Royal Strikers, Garuda Warriors, Hitman 11, etc.)"
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-teal-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
           >
             <Settings className="w-4 h-4 text-slate-500" />
             <span className="hidden sm:inline">8 Teams</span>
           </button>
 
-          {/* Primary Action: Download All Players with Full Details */}
-          <button
-            type="button"
-            onClick={handleDownloadPDF}
-            disabled={isExportingPdf || players.length === 0}
-            id="btn-download-all-players-pdf-header"
-            title="Download complete roster of all registered players with all details as PDF"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed border border-teal-700/30 rounded-xl shadow-2xs transition-colors cursor-pointer"
-          >
-            {isExportingPdf ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                <span>Generating...</span>
-              </>
-            ) : (
-              <>
-                <FileText className="w-3.5 h-3.5" />
-                <span>Download Players (All Details PDF)</span>
-              </>
-            )}
-          </button>
+          {/* MAIN PROMINENT ACTION: DOWNLOAD PLAYERS (ALL DETAILS) */}
+          <div className="inline-flex items-stretch rounded-xl shadow-xs border border-teal-700/30 overflow-hidden bg-teal-600">
+            <button
+              type="button"
+              onClick={() => setIsDownloadModalOpen(true)}
+              id="btn-download-all-players-master-header"
+              title="Download full player directory with all details (Name, Mobile, Email, Team, Jersey, Size, Status)"
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-black text-white hover:bg-teal-700 transition-colors cursor-pointer"
+            >
+              <Download className="w-4 h-4 text-teal-200 shrink-0" />
+              <div className="text-left leading-tight">
+                <div className="font-extrabold tracking-tight">Download Players</div>
+                <div className="text-[10px] text-teal-100 font-medium hidden sm:block">All Details Included</div>
+              </div>
+            </button>
 
-          {/* Secondary Action: Download All Details as Excel / CSV */}
-          <button
-            type="button"
-            onClick={handleDownloadCSV}
-            disabled={players.length === 0}
-            id="btn-download-all-players-csv-header"
-            title="Download complete details of all players as Excel / CSV spreadsheet"
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 hover:text-teal-700 bg-white hover:bg-slate-50 disabled:opacity-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
-            <span>Excel/CSV</span>
-          </button>
+            {/* Quick 1-Click Direct Download PDF Dropdown/Trigger */}
+            <button
+              type="button"
+              onClick={handleDownloadPDF}
+              disabled={isExportingPdf || players.length === 0}
+              id="btn-quick-download-pdf-header"
+              title="One-click instant download as printable PDF roster"
+              className="px-2.5 border-l border-teal-500/40 hover:bg-teal-700 text-teal-100 hover:text-white text-xs font-bold transition-colors flex items-center justify-center cursor-pointer"
+            >
+              {isExportingPdf ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <span>PDF</span>
+              )}
+            </button>
 
-          {/* Tertiary Action: Download 8-Teams & Jersey Names Separation PDF */}
+            {/* Quick 1-Click Direct Download Excel / CSV */}
+            <button
+              type="button"
+              onClick={handleDownloadCSV}
+              disabled={players.length === 0}
+              id="btn-quick-download-csv-header"
+              title="One-click instant download as Excel / CSV spreadsheet"
+              className="px-2.5 border-l border-teal-500/40 hover:bg-teal-700 text-teal-100 hover:text-white text-xs font-bold transition-colors flex items-center justify-center cursor-pointer"
+            >
+              <span>CSV</span>
+            </button>
+          </div>
+
+          {/* Download 8-Teams Squads PDF */}
           <button
             type="button"
             onClick={handleDownloadTeamsPDF}
             disabled={isExportingPdf || players.length === 0}
             id="btn-download-teams-pdf-header"
-            title="Download Official 8-Teams Roster PDF separated by team with player jersey names"
+            title="Download Official 8-Teams Roster PDF separated by team"
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-teal-700 bg-white hover:bg-slate-50 disabled:opacity-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
           >
             <Trophy className="w-3.5 h-3.5 text-amber-500" />
@@ -981,6 +993,7 @@ create policy "Allow public delete" on public.registrations
           onDownloadSingleTeamPDF={handleDownloadSingleTeamPDF}
           onDownloadAllPlayersPDF={handleDownloadPDF}
           onDownloadAllPlayersCSV={handleDownloadCSV}
+          onOpenDownloadModal={() => setIsDownloadModalOpen(true)}
           onOpenManageTeams={() => setIsTeamsModalOpen(true)}
           onAutoDistribute={handleAutoDistributeTeams}
           onVerifyPlayer={(id) => handleUpdateStatus(id, 'verified')}
@@ -1099,18 +1112,29 @@ create policy "Allow public delete" on public.registrations
                   </button>
                 )}
 
-                {/* Download All Players Buttons Toolbar */}
+                {/* Prominent Download Players Button Toolbar */}
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsDownloadModalOpen(true)}
+                    id="btn-download-all-players-table-toolbar"
+                    title="Download complete directory of all registered players with all details as PDF or Excel"
+                    className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-black text-white bg-teal-600 hover:bg-teal-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-teal-200" />
+                    <span>Download Players (All Details)</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={handleDownloadPDF}
                     disabled={isExportingPdf || players.length === 0}
-                    id="btn-download-all-players-table-toolbar"
-                    title="Download complete directory of all registered players with all details as PDF"
-                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-50 rounded-xl shadow-2xs transition-colors cursor-pointer"
+                    id="btn-download-all-players-pdf-direct"
+                    title="Instant download as PDF"
+                    className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-bold text-slate-700 hover:text-teal-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors cursor-pointer"
                   >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>Download Players (All Details PDF)</span>
+                    <FileText className="w-3.5 h-3.5 text-teal-600" />
+                    <span>PDF</span>
                   </button>
 
                   <button
@@ -1118,11 +1142,11 @@ create policy "Allow public delete" on public.registrations
                     onClick={handleDownloadCSV}
                     disabled={players.length === 0}
                     id="btn-download-all-players-csv-table-toolbar"
-                    title="Download complete details of all players as Excel / CSV spreadsheet"
-                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 hover:text-teal-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
+                    title="Instant download as Excel / CSV spreadsheet"
+                    className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-bold text-slate-700 hover:text-teal-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5 text-slate-500" />
-                    <span>Export CSV</span>
+                    <span>CSV</span>
                   </button>
                 </div>
 
@@ -1603,6 +1627,26 @@ create policy "Allow public delete" on public.registrations
         onUnverifyPlayer={async (id) => {
           await handleUpdateStatus(id, 'pending');
           setTeamPickerPlayer((prev) => (prev ? { ...prev, paymentStatus: 'pending', teamId: '' } : null));
+        }}
+      />
+
+      {/* 12. DOWNLOAD PLAYERS DIRECTORY MODAL */}
+      <DownloadPlayersModal
+        isOpen={isDownloadModalOpen}
+        onClose={() => setIsDownloadModalOpen(false)}
+        players={players}
+        teams={teams}
+        adminName={adminUser?.name || 'Tournament Director'}
+        onPdfGenerated={(result) => {
+          if (result && (result.blobUrl || result.dataUriString)) {
+            setPdfDownloadNotice({
+              fileName: result.fileName,
+              blobUrl: result.blobUrl,
+              dataUriString: result.dataUriString,
+              isMobile: result.isMobile,
+              recordCount: result.recordCount,
+            });
+          }
         }}
       />
 

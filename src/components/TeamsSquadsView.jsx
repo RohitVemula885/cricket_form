@@ -16,6 +16,7 @@ export default function TeamsSquadsView({
   onDownloadSingleTeamPDF,
   onDownloadAllPlayersPDF,
   onDownloadAllPlayersCSV,
+  onOpenDownloadModal,
   onOpenManageTeams,
   onAutoDistribute,
   onVerifyPlayer,
@@ -164,20 +165,18 @@ export default function TeamsSquadsView({
             )}
           </button>
 
-          {/* Download Complete Player List with All Details */}
-          {onDownloadAllPlayersPDF && (
-            <button
-              type="button"
-              onClick={onDownloadAllPlayersPDF}
-              disabled={isExportingPdf || players.length === 0}
-              id="btn-download-all-players-squads-view"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:text-teal-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
-              title="Download master PDF directory containing all players with all details"
-            >
-              <FileText className="w-4 h-4 text-teal-600" />
-              <span>Download All Players (PDF)</span>
-            </button>
-          )}
+          {/* Prominent Download Players (All Details) Action */}
+          <button
+            type="button"
+            onClick={onOpenDownloadModal || onDownloadAllPlayersPDF}
+            disabled={players.length === 0}
+            id="btn-download-all-players-squads-view"
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 text-xs font-black text-white bg-teal-600 hover:bg-teal-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+            title="Download full player directory with all details (PDF & Excel)"
+          >
+            <Download className="w-4 h-4 text-teal-200" />
+            <span>Download Players (All Details)</span>
+          </button>
 
           {onDownloadAllPlayersCSV && (
             <button
@@ -189,7 +188,7 @@ export default function TeamsSquadsView({
               title="Download all players as an Excel / CSV spreadsheet"
             >
               <Download className="w-3.5 h-3.5 text-slate-500" />
-              <span>Excel/CSV</span>
+              <span>CSV</span>
             </button>
           )}
         </div>
